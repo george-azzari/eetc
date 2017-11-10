@@ -1,3 +1,10 @@
+"""
+Author: George Azzari (gazzari@stanford.edu)
+Center on Food Security and the Environment
+Department of Earth System Science
+Stanford University
+"""
+
 import ee
 
 
