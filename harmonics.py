@@ -47,6 +47,9 @@ def add_constant(image):
 
 def add_harmonics(image, omega):
 
+    image = add_timevars(image, 'DYEAR')
+    image = add_constant(image)
+
     timeRadians = image.select('t').multiply(2 * np.pi * omega)
 
     cost = timeRadians.cos().rename(['cos'])
@@ -88,7 +91,7 @@ def arrayimg_harmon_regr(harmonicoll, dependent, independents):
     regressors= harmonicoll.select(independents.add(dependent))
     regression = regressors.reduce(ee.Reducer.linearRegression(independents.length(), 1))
 
-    return  regression
+    return regression
 
 
 def get_prediction(harmonicimg, regrcoeffimg, dependent, independents):
