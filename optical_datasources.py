@@ -24,6 +24,8 @@ def joincoll(coll1, coll2):
 
 
 def addVIs(img):
+
+    # TODO: factors expect reflectance unit ([0,1]). Scaled images are in [0,1e4].
     evi = img.expression(
         '2.5 * (nir - red) / (nir + 6 * red - 7.5 * blue + 1)',
         {'red': img.select('RED'),
@@ -37,6 +39,7 @@ def addVIs(img):
          'green': img.select('GREEN')
          }).select([0], ['GCVI']).multiply(1000).toInt32()
 
+    # TODO: factors expect reflectance unit ([0,1]). Scaled images are in [0,1e4].
     tvi = img.expression(
         '0.5 * (120 * (nir - green) - 200 * (red - green))',
         {'nir': img.select('NIR'),
@@ -44,6 +47,7 @@ def addVIs(img):
          'red': img.select('RED')
          }).select([0], ['TVI']).toInt32()
 
+    # TODO: factors expect reflectance unit ([0,1]). Scaled images are in [0,1e4].
     sndvi = img.expression(
         '(nir - red) / (red + nir + 0.16)',
         {'nir': img.select('NIR'),
