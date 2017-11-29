@@ -7,6 +7,7 @@ Stanford University
 
 import ee
 import numpy as np
+import optical_datasources as optix
 
 
 def append_band(current, previous):
@@ -112,53 +113,56 @@ def get_residual(harmonicimg, regrcoeffimg, dependent, independents):
     return residual
 
 
-def image_harmon_regr(harmonicoll, dependent, independents, myrmse=False):
-
-    hregr = arrayimg_harmon_regr(harmonicoll, dependent, independents)
+def spectral_hregr(harmonicoll, dependent, independents, addstats=False, myrmse=False):
 
     independents = ee.List(independents)
     dependent = ee.String(dependent)
 
-    totreducer = ee.Reducer.sampleVariance()
-    totreducer = totreducer.combine(ee.Reducer.count(), None, True)
-    totreducer = totreducer.combine(ee.Reducer.mean(), None, True)
+    hregr = arrayimg_harmon_regr(harmonicoll, dependent, independents)
 
+    # Computing stats here (may need for myremse)
+    totreducer = ee.Reducer.sampleVariance()
+    totreducer = totreducer.combine(ee.Reducer.count(), None, True)  # this does not to be repeated for all bands...
+    totreducer = totreducer.combine(ee.Reducer.mean(), None, True)
     stats = harmonicoll.select(dependent).reduce(totreducer)
 
     # New names for coefficients
     newnames = independents.map(lambda b: dependent.cat(ee.String('_')).cat(ee.String(b)))
-
     # Turn the array image into a multi-band image of coefficients.
     imgcoeffs = hregr.select('coefficients').arrayProject([0]).arrayFlatten([independents])
     imgcoeffs = imgcoeffs.select(independents, newnames)
 
+    # The band 'residuals' the *root mean square* of the residuals (RMSE)
+    rmse = hregr.select('residuals').arrayProject([0]).arrayFlatten([[dependent.cat(ee.String('_rmse'))]])
+
     if myrmse:
 
+        # NOTE: this is here for verification purposes only; I was not sure if the reducer output was
+        #       actually RMSE or something else.
         rss = harmonicoll.map(lambda himg: get_residual(himg, imgcoeffs, dependent, independents)).sum()
-        rss = rss.select([0],[dependent.cat(ee.String('_rss'))])
+        rss = rss.select([0], [dependent.cat(ee.String('_rss'))])
 
         count = stats.select(dependent.cat(ee.String('_count')))
-        rmse = rss.divide(count).sqrt().select([0], [dependent.cat(ee.String('_rmse2'))])
+        rmse = rss.divide(count).sqrt().select([0], [dependent.cat(ee.String('_rmse'))])
 
-    else:
-        # The band 'residuals' the *root mean square* of the residuals (RMSE)
-        rmse = hregr.select('residuals').arrayProject([0]).arrayFlatten([[dependent.cat(ee.String('_rmse'))]])
+    if addstats:
 
-    variance = stats.select(dependent.cat(ee.String('_variance')))
+        variance = stats.select(dependent.cat(ee.String('_variance')))
 
-    r2bandn =dependent.cat(ee.String('_r2'))
-    r2 = ee.Image(1).updateMask(variance).subtract(rmse.pow(2).divide(variance)).select([0], [r2bandn])
+        r2bandn = dependent.cat(ee.String('_r2'))
+        r2 = ee.Image(1).updateMask(variance).subtract(rmse.pow(2).divide(variance)).select([0], [r2bandn])
 
-    return imgcoeffs.addBands(stats).addBands(rmse).addBands(r2)
+        imgcoeffs = imgcoeffs.addBands(stats).addBands(r2)
+
+    imgcoeffs = imgcoeffs.addBands(rmse)
+
+    return imgcoeffs
 
 
-def allbands_harmon_regr(collection, bands, independents, ascoll):
+def multispectral_hregr(harmonicoll, bands, independents, ascoll, addstats=False, myrmse=False):
 
-    # Add harmonic terms as new image bands.
-    hcoll = get_harmonic_coll(collection, 1.6)
-
-    coefficients = ee.List(bands).map(lambda dependent: image_harmon_regr(hcoll, dependent, independents))
-    coeffcoll = ee.ImageCollection.fromImages(coefficients)
+    f= lambda dependent: spectral_hregr(harmonicoll, dependent, independents, addstats, myrmse)
+    coeffcoll = ee.ImageCollection.fromImages(ee.List(bands).map(f))
 
     if ascoll:
         return coeffcoll
@@ -167,4 +171,16 @@ def allbands_harmon_regr(collection, bands, independents, ascoll):
         return ee.Image(coeffcoll.iterate(append_band))
 
 
+def lx_hregr(region, start_date, end_date, addstats=False, myrmse=False):
 
+    independents = ee.List(['constant', 't', 'cos', 'sin', 'sincos'])
+    lx = optix.LandsatSR(region, start_date, end_date).mergedcfm
+    lx = lx.select(['BLUE', 'GREEN', 'RED', 'NIR', 'SWIR1', 'SWIR2']).map(optix.addVIs)
+    hlx = get_harmonic_coll(lx, 1.6)
+
+    nonoptical = ee.List(['t', 'DOY', 'MONTH', 'MSTIME', 'DYEAR', 'constant'])
+    bands = ee.Image(lx.first()).bandNames().removeAll(nonoptical)
+
+    allcoeffs = multispectral_hregr(hlx, bands, independents, False, addstats, myrmse)
+
+    return allcoeffs
