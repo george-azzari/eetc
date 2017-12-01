@@ -27,7 +27,8 @@ def add_timevars(image, tunit):
     month = date.getRelative('month', 'year')
     monthimage = image.select(0).multiply(0).add(month).select([0], ['MONTH']).toInt16()
 
-    dyear = date.difference(ee.Date('1970-01-01'), 'year')
+    jan1 = ee.Date.fromYMD(date.get('year'), 1, 1)
+    dyear = date.difference(jan1, 'year')
     dyimage = image.select(0).multiply(0).add(dyear).select([0], ['DYEAR']).float()
 
     ms = ee.Number(image.get('system:time_start'))
@@ -52,17 +53,19 @@ def add_harmonics(image, omega):
     image = add_constant(image)
 
     timeRadians = image.select('t').multiply(2 * np.pi * omega)
+    timeRadians2 = image.select('t').multiply(4 * np.pi * omega);
 
     cost = timeRadians.cos().rename(['cos'])
     sint = timeRadians.sin().rename(['sin'])
-    sincost = timeRadians.sin().multiply(timeRadians.cos()).rename(['sincos'])
+    cost2 = timeRadians2.cos().rename(['cos2'])
+    sint2 = timeRadians2.sin().rename(['sin2'])
 
-    return image.addBands(cost).addBands(sint).addBands(sincost)
+    return image.addBands(cost).addBands(sint).addBands(cost2).addBands(sint2)
 
 
 def get_harmonic_coll(collection, omega):
 
-    omega = 1.6
+    omega = 1.5
 
     f = lambda img: add_harmonics(img, omega)
 
@@ -173,10 +176,10 @@ def multispectral_hregr(harmonicoll, bands, independents, ascoll, addstats=False
 
 def lx_hregr(region, start_date, end_date, addstats=False, myrmse=False):
 
-    independents = ee.List(['constant', 't', 'cos', 'sin', 'sincos'])
+    independents = ee.List(['constant', 't', 'cos', 'sin', 'cos2', 'sin2'])
     lx = optix.LandsatSR(region, start_date, end_date).mergedcfm
     lx = lx.select(['BLUE', 'GREEN', 'RED', 'NIR', 'SWIR1', 'SWIR2']).map(optix.addVIs)
-    hlx = get_harmonic_coll(lx, 1.6)
+    hlx = get_harmonic_coll(lx, 1.5)
 
     nonoptical = ee.List(['t', 'DOY', 'MONTH', 'MSTIME', 'DYEAR', 'constant'])
     bands = ee.Image(lx.first()).bandNames().removeAll(nonoptical)
