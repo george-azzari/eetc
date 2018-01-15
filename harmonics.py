@@ -53,7 +53,7 @@ def add_harmonics(image, omega):
     image = add_constant(image)
 
     timeRadians = image.select('t').multiply(2 * np.pi * omega)
-    timeRadians2 = image.select('t').multiply(4 * np.pi * omega);
+    timeRadians2 = image.select('t').multiply(4 * np.pi * omega)
 
     cost = timeRadians.cos().rename(['cos'])
     sint = timeRadians.sin().rename(['sin'])
@@ -63,9 +63,7 @@ def add_harmonics(image, omega):
     return image.addBands(cost).addBands(sint).addBands(cost2).addBands(sint2)
 
 
-def get_harmonic_coll(collection, omega):
-
-    omega = 1.5
+def get_harmonic_coll(collection, omega=1.5):
 
     f = lambda img: add_harmonics(img, omega)
 
@@ -75,8 +73,7 @@ def get_harmonic_coll(collection, omega):
     return harmonic_coll
 
 
-def arrayimg_harmon_regr(harmonicoll, dependent, independents):
-
+def _arrayimg_hrmregr_single(harmonicoll, dependent, independents):
 
     """
      The first output is a coefficients array with dimensions (numX, numY)
@@ -92,42 +89,18 @@ def arrayimg_harmon_regr(harmonicoll, dependent, independents):
     independents = ee.List(independents)
     dependent = ee.String(dependent)
 
-    regressors= harmonicoll.select(independents.add(dependent))
+    regressors = harmonicoll.select(independents.add(dependent))
     regression = regressors.reduce(ee.Reducer.linearRegression(independents.length(), 1))
 
     return regression
 
 
-def get_prediction(harmonicimg, regrcoeffimg, dependent, independents):
-
-    harmonicimg = ee.Image(harmonicimg).select(independents)
-
-    predicted = harmonicimg.multiply(regrcoeffimg).reduce(ee.Reducer.sum())
-    predicted =predicted.select([0], [ee.String('pred_').cat(dependent)])
-
-    return predicted
-
-
-def get_residual(harmonicimg, regrcoeffimg, dependent, independents):
-
-    predicted = get_prediction(harmonicimg, regrcoeffimg, dependent, independents)
-    residual = harmonicimg.select(dependent).subtract(predicted).pow(2)
-
-    return residual
-
-
-def spectral_hregr(harmonicoll, dependent, independents, addstats=False, myrmse=False):
+def hrmregr_single(harmonicoll, dependent, independents):
 
     independents = ee.List(independents)
     dependent = ee.String(dependent)
 
-    hregr = arrayimg_harmon_regr(harmonicoll, dependent, independents)
-
-    # Computing stats here (may need for myremse)
-    totreducer = ee.Reducer.sampleVariance()
-    totreducer = totreducer.combine(ee.Reducer.count(), None, True)  # this does not to be repeated for all bands...
-    totreducer = totreducer.combine(ee.Reducer.mean(), None, True)
-    stats = harmonicoll.select(dependent).reduce(totreducer)
+    hregr = _arrayimg_hrmregr_single(harmonicoll, dependent, independents)
 
     # New names for coefficients
     newnames = independents.map(lambda b: dependent.cat(ee.String('_')).cat(ee.String(b)))
@@ -138,34 +111,51 @@ def spectral_hregr(harmonicoll, dependent, independents, addstats=False, myrmse=
     # The band 'residuals' the *root mean square* of the residuals (RMSE)
     rmse = hregr.select('residuals').arrayProject([0]).arrayFlatten([[dependent.cat(ee.String('_rmse'))]])
 
-    if myrmse:
+    # Computing variance for R2
+    totreducer = ee.Reducer.sampleVariance()
+    variance = harmonicoll.select(dependent).reduce(totreducer)
 
-        # NOTE: this is here for verification purposes only; I was not sure if the reducer output was
-        #       actually RMSE or something else.
-        rss = harmonicoll.map(lambda himg: get_residual(himg, imgcoeffs, dependent, independents)).sum()
-        rss = rss.select([0], [dependent.cat(ee.String('_rss'))])
+    # UPDATE: computing R2 from RMSE and variance can be done on the fly.
+    #         Suppressing it here can save storage if asset is exported.
+    # # Computing R2
+    # r2bandn = dependent.cat(ee.String('_r2'))
+    # r2 = ee.Image(1).updateMask(variance).subtract(rmse.pow(2).divide(variance)).select([0], [r2bandn])
 
-        count = stats.select(dependent.cat(ee.String('_count')))
-        rmse = rss.divide(count).sqrt().select([0], [dependent.cat(ee.String('_rmse'))])
-
-    if addstats:
-
-        variance = stats.select(dependent.cat(ee.String('_variance')))
-
-        r2bandn = dependent.cat(ee.String('_r2'))
-        r2 = ee.Image(1).updateMask(variance).subtract(rmse.pow(2).divide(variance)).select([0], [r2bandn])
-
-        imgcoeffs = imgcoeffs.addBands(stats).addBands(r2)
-
-    imgcoeffs = imgcoeffs.addBands(rmse)
+    imgcoeffs = imgcoeffs.addBands(variance).addBands(rmse)#.addBands(r2)
 
     return imgcoeffs
 
 
-def multispectral_hregr(harmonicoll, bands, independents, ascoll, addstats=False, myrmse=False):
+def _get_prediction(harmonicimg, regrcoeffimg, dependent, independents):
 
-    f= lambda dependent: spectral_hregr(harmonicoll, dependent, independents, addstats, myrmse)
-    coeffcoll = ee.ImageCollection.fromImages(ee.List(bands).map(f))
+    harmonicimg = ee.Image(harmonicimg).select(independents)
+
+    predicted = harmonicimg.multiply(regrcoeffimg).reduce(ee.Reducer.sum())
+    predicted = predicted.select([0], [ee.String('pred_').cat(dependent)])
+
+    return predicted
+
+
+def _get_residual(harmonicimg, regrcoeffimg, dependent, independents):
+
+    predicted = _get_prediction(harmonicimg, regrcoeffimg, dependent, independents)
+    residual = harmonicimg.select(dependent).subtract(predicted).pow(2)
+
+    return residual
+
+
+def hrmregr_multi(harmonicoll, dependents, independents, ascoll):
+
+    """
+    :param harmonicoll: collection containing all bands of interest plus the independents.
+    :param dependents: list of image bands on which regression is to be performed.
+    :param independents: list of time bands (constant, time, sines, and cosines)
+    :param ascoll: whether the result should be returned as a collection, rather than an image.
+    :return: ee.Image containing coefficients for all dependents and independents.
+    """
+
+    f= lambda dependent: hrmregr_single(harmonicoll, dependent, independents)
+    coeffcoll = ee.ImageCollection.fromImages(ee.List(dependents).map(f))
 
     if ascoll:
         return coeffcoll
@@ -174,16 +164,27 @@ def multispectral_hregr(harmonicoll, bands, independents, ascoll, addstats=False
         return ee.Image(coeffcoll.iterate(append_band))
 
 
-def lx_hregr(region, start_date, end_date, addstats=False, myrmse=False):
+def lx_hregr(region, start_date, end_date, omega=1.5, addcount=True):
 
     independents = ee.List(['constant', 't', 'cos', 'sin', 'cos2', 'sin2'])
+
+    # TODO: update to new Collection1 collections
     lx = optix.LandsatSR(region, start_date, end_date).mergedcfm
     lx = lx.select(['BLUE', 'GREEN', 'RED', 'NIR', 'SWIR1', 'SWIR2']).map(optix.addVIs)
-    hlx = get_harmonic_coll(lx, 1.5)
+    hlx = get_harmonic_coll(lx, omega)
 
     nonoptical = ee.List(['t', 'DOY', 'MONTH', 'MSTIME', 'DYEAR', 'constant'])
     bands = ee.Image(lx.first()).bandNames().removeAll(nonoptical)
 
-    allcoeffs = multispectral_hregr(hlx, bands, independents, False, addstats, myrmse)
+    allcoeffs = hrmregr_multi(hlx, bands, independents, False)
+    allcoeffs = allcoeffs.set('omega', omega,
+                              'n', 2,
+                              'start_date', start_date.millis(),
+                              'end_date', end_date.millis(),
+                              'formula', 'A + Bt + Ccos(2piwt) + Dsin(2piwt) + Ecos(4piwt) + Fsin(4piwt)')
+
+    if addcount:
+        count = lx.select(['NIR']).count().select([0], ['count'])
+        allcoeffs = allcoeffs.addBands(count)
 
     return allcoeffs
