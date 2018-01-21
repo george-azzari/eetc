@@ -233,6 +233,7 @@ class LandsatTOA:
 
 class LandsatLEDAPS:
     """
+    **** DEPRECATED: DO NOT USE ****
     Landsat surface reflectance images as computed by the LEDAPS method (http://ledaps.nascom.nasa.gov/).
     Reflectance is a unitless ratio rescaled to 0-10000.
     An additional atmos_opacity band is added with a representation of atmospheric opacity due to moisture
