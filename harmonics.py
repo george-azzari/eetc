@@ -121,7 +121,7 @@ def hrmregr_single(harmonicoll, dependent, independents):
     # r2bandn = dependent.cat(ee.String('_r2'))
     # r2 = ee.Image(1).updateMask(variance).subtract(rmse.pow(2).divide(variance)).select([0], [r2bandn])
 
-    imgcoeffs = imgcoeffs.addBands(variance).addBands(rmse)#.addBands(r2)
+    imgcoeffs = imgcoeffs.addBands(rmse).addBands(variance)#.addBands(r2)
 
     return imgcoeffs
 
@@ -164,17 +164,42 @@ def hrmregr_multi(harmonicoll, dependents, independents, ascoll):
         return ee.Image(coeffcoll.iterate(append_band))
 
 
-def lx_hregr(region, start_date, end_date, omega=1.5, addcount=True):
-
-    independents = ee.List(['constant', 't', 'cos', 'sin', 'cos2', 'sin2'])
+def lx_hregr(region, start_date, end_date, omega=1.5, imgmask=None, bands=None, rmbands=None,
+             independents=None, addcount=True):
+    """
+    Generate harmonics composite for a merged Landsat SR collection.
+    :param region: ee.Feature
+    :param start_date: ee.Date
+    :param end_date: ee.Date
+    :param omega: the omega factor for the Fourier series
+    :param imgmask: mask to use on individual images prior generating the composite (optional)
+    :param bands: the bands to use as dependent variables (optional, defaults to all optical bands and indexes)
+    :param rmbands: bands to remove from default (optional)
+    :param addcount: whether a count band should be added
+    :return: ee.Image (composite)
+    """
+    if independents is None:
+        # NOTE: removed 't' (linear term)
+        independents = ee.List(['constant', 'cos', 'sin', 'cos2', 'sin2'])
 
     # TODO: update to new Collection1 collections
     lx = optix.LandsatSR(region, start_date, end_date).mergedcfm
     lx = lx.select(['BLUE', 'GREEN', 'RED', 'NIR', 'SWIR1', 'SWIR2']).map(optix.addVIs)
+
+    if imgmask is not None:
+        lx = lx.map(lambda img: img.updateMask(imgmask))
+
     hlx = get_harmonic_coll(lx, omega)
 
-    nonoptical = ee.List(['t', 'DOY', 'MONTH', 'MSTIME', 'DYEAR', 'constant'])
-    bands = ee.Image(lx.first()).bandNames().removeAll(nonoptical)
+    if bands is None:
+        nonoptical = ee.List(['t', 'DOY', 'MONTH', 'MSTIME', 'DYEAR', 'constant'])
+        bands = ee.Image(lx.first()).bandNames().removeAll(nonoptical)
+
+        if rmbands is not None:
+            bands = bands.removeAll(ee.List(rmbands))
+
+    else:
+        bands = ee.List(bands)
 
     allcoeffs = hrmregr_multi(hlx, bands, independents, False)
     allcoeffs = allcoeffs.set('omega', omega,
