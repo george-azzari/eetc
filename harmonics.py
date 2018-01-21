@@ -164,7 +164,8 @@ def hrmregr_multi(harmonicoll, dependents, independents, ascoll):
         return ee.Image(coeffcoll.iterate(append_band))
 
 
-def lx_hregr(region, start_date, end_date, omega=1.5, imgmask=None, bands=None, rmbands=None, addcount=True):
+def lx_hregr(region, start_date, end_date, omega=1.5, imgmask=None, bands=None, rmbands=None,
+             independents=None, addcount=True):
     """
     Generate harmonics composite for a merged Landsat SR collection.
     :param region: ee.Feature
@@ -177,8 +178,9 @@ def lx_hregr(region, start_date, end_date, omega=1.5, imgmask=None, bands=None, 
     :param addcount: whether a count band should be added
     :return: ee.Image (composite)
     """
-
-    independents = ee.List(['constant', 't', 'cos', 'sin', 'cos2', 'sin2'])
+    if independents is None:
+        # NOTE: removed 't' (linear term)
+        independents = ee.List(['constant', 'cos', 'sin', 'cos2', 'sin2'])
 
     # TODO: update to new Collection1 collections
     lx = optix.LandsatSR(region, start_date, end_date).mergedcfm
