@@ -6,7 +6,6 @@ Stanford University
 """
 
 import ee
-import lndsatimgtools as imgtools
 
 
 def _mergejoin(joinedelement):
@@ -25,78 +24,75 @@ def joincoll(coll1, coll2):
 
 def addVIs(img):
 
-    # TODO: factors expect reflectance unit ([0,1]). Scaled images are in [0,1e4].
     evi = img.expression(
         '2.5 * (nir - red) / (nir + 6 * red - 7.5 * blue + 1)',
         {'red': img.select('RED'),
          'nir': img.select('NIR'),
          'blue': img.select('BLUE')
-         }).select([0], ['EVI']).multiply(1000).toInt32()
+         }).select([0], ['EVI'])
 
     gcvi = img.expression(
         '(nir / green) - 1',
         {'nir': img.select('NIR'),
          'green': img.select('GREEN')
-         }).select([0], ['GCVI']).multiply(1000).toInt32()
+         }).select([0], ['GCVI'])
 
-    # TODO: factors expect reflectance unit ([0,1]). Scaled images are in [0,1e4].
     tvi = img.expression(
         '0.5 * (120 * (nir - green) - 200 * (red - green))',
         {'nir': img.select('NIR'),
          'green': img.select('GREEN'),
          'red': img.select('RED')
-         }).select([0], ['TVI']).toInt32()
+         }).select([0], ['TVI'])
 
-    # TODO: factors expect reflectance unit ([0,1]). Scaled images are in [0,1e4].
     sndvi = img.expression(
         '(nir - red) / (red + nir + 0.16)',
         {'nir': img.select('NIR'),
          'red': img.select('RED')
-         }).select([0], ['SNDVI']).multiply(1000).toInt32()
+         }).select([0], ['SNDVI'])
 
     ndvi = img.expression(
         '(nir - red) / (red + nir)',
         {'nir': img.select('NIR'),
          'red': img.select('RED')
-         }).select([0], ['NDVI']).multiply(1000).toInt32()
+         }).select([0], ['NDVI'])
 
     nbr1 = img.expression(
         '(nir - swir1) / (nir + swir1)',
         {'nir': img.select('NIR'),
          'swir1': img.select('SWIR1')
-         }).select([0], ['NBR1']).multiply(1000).toInt32()
+         }).select([0], ['NBR1'])
 
     nbr2 = img.expression(
         '(nir - swir2) / (nir + swir2)',
         {'nir': img.select('NIR'),
          'swir2': img.select('SWIR2')
-         }).select([0], ['NBR2']).multiply(1000).toInt32()
+         }).select([0], ['NBR2'])
 
     # Simple tillage index
     sti = img.expression(
         'swir1/swir2',
         {'swir1': img.select('SWIR1'),
          'swir2': img.select('SWIR2')
-         }).select([0], ['STI']).multiply(1000).toInt32()
+         }).select([0], ['STI'])
 
     # NDTI
     ndti = img.expression(
         '(swir1 - swir2) / (swir1 + swir2)',
         {'swir1': img.select('SWIR1'),
          'swir2': img.select('SWIR2')
-         }).select([0], ['NDTI']).multiply(1000).toInt32()
+         }).select([0], ['NDTI'])
 
     # Modified CRC
     crc = img.expression(
         '(swir1 - green) / (swir1 + green)',
         {'green': img.select('GREEN'),
          'swir1': img.select('SWIR1')
-         }).select([0], ['CRC']).multiply(1000).toInt32()
+         }).select([0], ['CRC'])
 
     return ee.Image.cat([img, evi, gcvi, tvi, sndvi, ndvi, nbr1, nbr2, sti, ndti, crc])
 
 
-class LandsatTOA:
+class LandsatTOAPRE:
 
     def __init__(self, filterpoly, start_date, end_date):
 
@@ -231,76 +227,7 @@ class LandsatTOA:
         return reflimg.addBands(thermimg)
 
 
-class LandsatLEDAPS:
-    """
-    **** DEPRECATED: DO NOT USE ****
-    Landsat surface reflectance images as computed by the LEDAPS method (http://ledaps.nascom.nasa.gov/).
-    Reflectance is a unitless ratio rescaled to 0-10000.
-    An additional atmos_opacity band is added with a representation of atmospheric opacity due to moisture
-    and other factors.
-    A QA band is added with the the following indicator bits,
-    0:unused,
-    1:valid data (0=yes, 1=no),
-    2:ACCA cloud bit (1=cloudy, 0=clear),
-    3:unused,
-    4:ACCA snow mask,
-    5:land mask based on DEM (1=land, 0=water),
-    6:DDV (Dense Dark Vegetation)
-    """
-    def __init__(self, filterpoly, start_date, end_date):
-        self.filterpoly = filterpoly
-        self.s = start_date
-        self.e = end_date
-        self.l7 = self.init_coll('LEDAPS/LE7_L1T_SR')
-        self.l5 = self.init_coll('LEDAPS/LT5_L1T_SR')
-        self.l7qam = self.l7.map(self.mask_qa)
-        self.l5qam = self.l5.map(self.mask_qa)
-        self.merged = ee.ImageCollection(self.l5.merge(self.l7)).sort('system:time_start')
-        self.mergedqam = ee.ImageCollection(self.l5qam.merge(self.l7qam)).sort('system:time_start')
-
-    def init_coll(self, name):
-        return ee.ImageCollection(name).filterBounds(self.filterpoly).filterDate(self.s, self.e).map(
-            self.rename_l457)
-
-    @staticmethod
-    def rename_l457(limg):
-        """
-        B1 - blue	0.45 - 0.52
-        B1 - green	0.52 - 0.60
-        B3 - red	0.63 - 0.69
-        B4 - Near Infrared	0.77 - 0.90
-        B5 - Short-wave Infrared	1.55 - 1.75
-        B7 - Short-wave Infrared	2.09 - 2.35
-        atmos_opacity - Atmospheric Opacity
-        QA - Bit-packed quality masks
-        lndcal_QA -
-        """
-        return limg.rename(['BLUE', 'GREEN', 'RED', 'NIR', 'SWIR1', 'SWIR2', 'AO', 'QA', 'LCQA'])
-
-    @staticmethod
-    def mask_qa(ledapsimg):
-        """
-        The "QA" band has various flags encoded in different bits.  We extract
-        some of them as individual mask bands.
-        QA Bit 2: Invalid pixel indicator.
-        QA Bit 3: Cloud indicator.
-        QA Bit 5: Water indicator.  (0 == water).
-        QA Bit 6: Pixel used as "dense dark vegetation"
-        """
-        valid = ledapsimg.select('QA').bitwiseAnd(2).eq(0)
-        valid = valid.updateMask(valid)
-        nocloud = ledapsimg.select('QA').bitwiseAnd(4).eq(0)
-        nocloud = nocloud.updateMask(nocloud)
-        # This flag is technically a "not water" flag
-        notwater = ledapsimg.select('QA').bitwiseAnd(32).neq(0)
-        notwater = notwater.updateMask(notwater)
-        dense_dark_vegetation = ledapsimg.select('QA').bitwiseAnd(64).neq(0)
-        dense_dark_vegetation = dense_dark_vegetation.updateMask(dense_dark_vegetation)
-        totmask = valid.And(nocloud).And(notwater)
-        return ledapsimg.updateMask(totmask)
-
-
-class LandsatSR:
+class LandsatSRPRE:
     def __init__(self, filterpoly, start_date, end_date):
         self.filterpoly = filterpoly
         self.s = start_date
@@ -412,10 +339,244 @@ class LandsatSR:
         return srimg.updateMask(clearpx)
 
 
+class LandsatSR:
+    """
+    Image Properties
+
+    Name	                Definition
+    CLOUD_COVER	            Percentage cloud cover, -1 = not calculated
+    CLOUD_COVER_LAND	    Percentage cloud cover over land, -1 = not calculated
+    IMAGE_QUALITY	        Image quality, 0 = worst, 9 = best, -1 = quality not calculated
+    EARTH_SUN_DISTANCE	    Earth-Sun distance (AU)
+    ESPA_VERSION	        Internal ESPA image version used to process SR
+    LANDSAT_ID	            Landsat Product Identifier (Collection 1)
+    LEVEL1_PRODUCTION_DATE	Date of production for raw level 1 data
+    PIXEL_QA_VERSION	    Version of the software used to produce the pixel_qa band
+    SATELLITE	            Name of satellite
+    SOLAR_AZIMUTH_ANGLE	    Solar azimuth angle
+    SR_APP_VERSION	        LaSRC version used to process surface reflectance
+    WRS_PATH	            WRS-2 path number of scene
+    WRS_ROW	                WRS row number of scene
+    """
+    def __init__(self, filterpoly, start_date, end_date):
+
+        self.filterpoly = filterpoly
+        self.s = start_date
+        self.e = end_date
+
+        self.l8 = self.init_coll8('LANDSAT/LC08/C01/T1_SR').map(self.rename_l8).map(self.rescale_l8)
+        self.l7 = self.init_coll('LANDSAT/LE07/C01/T1_SR').map(self.rename_l57).map(self.rescale_l57)
+        self.l5 = self.init_coll('LANDSAT/LT05/C01/T1_SR').map(self.rename_l57).map(self.rescale_l57)
+
+        # There are other ways of masking, this is just the simpler and more commonly used.
+        self.l8qam = self.l8.map(self.mask_qaclear_l8)
+        self.l7qam = self.l7.map(self.mask_qaclear_l57)
+        self.l5qam = self.l5.map(self.mask_qaclear_l57)
+
+        # Merging some of the collections that more commonly used
+        self.merged = ee.ImageCollection(self.l5.merge(self.l7).merge(self.l8)).sort('system:time_start')
+        self.mergedqam = ee.ImageCollection(self.l5qam.merge(self.l7qam).merge(self.l8qam)).sort('system:time_start')
+
+    def init_coll(self, name):
+        return ee.ImageCollection(name).filterBounds(self.filterpoly).filterDate(self.s, self.e).map(self.rename_l57)
+
+    def init_coll8(self, name):
+        return ee.ImageCollection(name).filterBounds(self.filterpoly).filterDate(self.s, self.e).map(self.rename_l8)
+
+    @staticmethod
+    def rename_l8(l8img):
+        """
+        Name	Scale Factor	Description
+        B1	    0.0001	    Band 1 (Ultra Blue) surface reflectance, 0.435-0.451 um
+        B2	    0.0001	    Band 2 (Blue) surface reflectance, 0.452-0.512 um
+        B3	    0.0001	    Band 3 (Green) surface reflectance, 0.533-0.590 um
+        B4	    0.0001	    Band 4 (Red) surface reflectance, 0.636-0.673 um
+        B5	    0.0001	    Band 5 (Near Infrared) surface reflectance, 0.851-0.879 um
+        B6	    0.0001	    Band 6 (Shortwave Infrared 1) surface reflectance, 1.566-1.651 um
+        B7	    0.0001	    Band 7 (Shortwave Infrared 2) surface reflectance, 2.107-2.294 um
+        B10	    0.1	        Band 10 brightness temperature (Kelvin), 10.60-11.19 um
+        B11	    0.1	        Band 11 brightness temperature (Kelvin), 11.50-12.51 um
+        sr_aerosol		    Aerosol attributes, see Aerosol QA table
+        pixel_qa		    Pixel quality attributes, see Pixel QA table
+        radsat_qa		    Radiometric saturation QA, see Radsat QA table
+        """
+
+        newnames = ['AEROS', 'BLUE', 'GREEN', 'RED', 'NIR', 'SWIR1', 'SWIR2',
+                    'TEMP1', 'TEMP2', 'sr_aerosol', 'pixel_qa', 'radsat_qa']
+
+        return l8img.rename(newnames)
+
+    @staticmethod
+    def rescale_l8(scene):
+
+        opt = scene.select(['AEROS', 'BLUE', 'GREEN', 'RED', 'NIR', 'SWIR1', 'SWIR2'])
+        therm = scene.select(['TEMP1', 'TEMP2'])
+        masks = scene.select(['sr_aerosol', 'pixel_qa', 'radsat_qa'])
+
+        opt = opt.multiply(0.0001)
+        therm = therm.multiply(0.1)
+
+        scaled = ee.Image(ee.Image.cat([opt, therm, masks]).copyProperties(scene))
+        # System properties are not copied (?)
+        scaled = scaled.set('system:time_start', scene.get('system:time_start'))
+
+        return scaled
+
+    @staticmethod
+    def rename_l57(limg):
+        """
+        Name	Scale Factor	Description
+        B1	    0.0001	    Band 1 (blue) surface reflectance, 0.45-0.52 um
+        B2	    0.0001	    Band 2 (green) surface reflectance, 0.52-0.60 um
+        B3	    0.0001	    Band 3 (red) surface reflectance, 0.63-0.69 um
+        B4	    0.0001	    Band 4 (near infrared) surface reflectance, 0.77-0.90 um
+        B5	    0.0001	    Band 5 (shortwave infrared 1) surface reflectance, 1.55-1.75 um
+        B6	    0.1	        Band 6 brightness temperature (Kelvin), 10.40-12.50 um
+        B7	    0.0001	    Band 7 (shortwave infrared 2) surface reflectance, 2.08-2.35 um
+        sr_atmos_opacity	0.001	Atmospheric opacity; < 0.1 = clear; 0.1 - 0.3 = average; > 0.3 = hazy
+        sr_cloud_qa		    Cloud quality attributes, see SR Cloud QA table. Note:
+                            pixel_qa is likely to present more accurate results
+                            than sr_cloud_qa for cloud masking. See page 23 in
+                            the LEDAPS product guide.
+        pixel_qa		    Pixel quality attributes generated from the CFMASK algorithm,
+                            see Pixel QA table
+        radsat_qa		Radiometric saturation QA, see Radiometric Saturation QA table
+        """
+        return limg.rename(['BLUE', 'GREEN', 'RED', 'NIR', 'SWIR1', 'TEMP1', 'SWIR2',
+                            'sr_atmos_opacity', 'sr_cloud_qa', 'pixel_qa', 'radsat_qa'])
+
+    @staticmethod
+    def rescale_l57(scene):
+
+        opt = scene.select(['BLUE', 'GREEN', 'RED', 'NIR', 'SWIR1', 'SWIR2'])
+        atmos = scene.select(['sr_atmos_opacity'])
+        therm = scene.select(['TEMP1'])
+        masks = scene.select(['sr_cloud_qa', 'pixel_qa', 'radsat_qa'])
+
+        opt = opt.multiply(0.0001)
+        atmos = atmos.multiply(0.001)
+        therm = therm.multiply(0.1)
+
+        scaled = ee.Image(ee.Image.cat([opt, therm, masks, atmos]).copyProperties(scene))
+        # System properties are not copied (?)
+        scaled = scaled.set('system:time_start', scene.get('system:time_start'))
+
+        return scaled
+
+
+    @staticmethod
+    def decode_qamask_l8(scene):
+        """
+        Pixel QA Bit Flags
+        Bit	Attribute
+        0	Fill
+        1	Clear
+        2	Water
+        3	Cloud Shadow
+        4	Snow
+        5	Cloud
+        6-7	Cloud Confidence (00 = None, 01 = Low, 10 = Medium, 11 = High)
+        8-9	Cirrus Confidence (00 = None, 01 = Low, 0 = Medium, 11 = High)
+        10	Terrain Occlusion
+        """
+
+        qa = scene.select('pixel_qa')
+        clear = qa.bitwiseAnd(2).neq(0)
+        clear = clear.updateMask(clear).rename(['pxqa_clear'])
+
+        water = qa.bitwiseAnd(4).neq(0)
+        water = water.updateMask(water).rename(['pxqa_water'])
+
+        cloud_shadow = qa.bitwiseAnd(8).neq(0)
+        cloud_shadow = cloud_shadow.updateMask(cloud_shadow).rename(['pxqa_cloudshadow'])
+
+        snow = qa.bitwiseAnd(16).neq(0)
+        snow = snow.updateMask(snow).rename(['pxqa_snow'])
+
+        cloud = qa.bitwiseAnd(32).neq(0)
+        cloud = cloud.updateMask(cloud).rename(['pxqa_cloud'])
+
+        # Cloud confidence is comprised of bits 6-7.
+        # Add the two bits and interpolate them to a range from 0-3.
+        # 0 = None, 1 = Low, 2 = Medium, 3 = High.
+        cloud_conf = qa.bitwiseAnd(64).add(qa.bitwiseAnd(128)).interpolate([0, 64, 128, 192], [0, 1, 2, 3], 'clamp')
+        cloud_conf = cloud_conf.int().rename(['pxqa_cloudconf'])
+
+        # Cirrus confidence is comprised of bits 8-9.
+        # Add the two bits and interpolate them to a range from 0-3.
+        # 0 = None, 1 = Low, 2 = Medium, 3 = High.
+        cirrus_conf = qa.bitwiseAnd(256).add(qa.bitwiseAnd(512)).interpolate([0, 64, 128, 192], [0, 1, 2, 3], 'clamp')
+        cirrus_conf = cirrus_conf.int().rename(['pxqa_cirrusconf'])
+
+        terrain = qa.bitwiseAnd(1024).neq(0)
+        terrain = terrain.updateMask(terrain).rename(['qa_terrain'])
+
+        masks = ee.Image.cat([
+            clear, water, cloud_shadow, snow,
+            cloud, cloud_conf, cirrus_conf,
+            terrain
+        ])
+
+        # return scene.select(scene.bandNames().remove('pixel_qa')).addBands(masks)
+        return masks
+
+    @staticmethod
+    def decode_qamask_l57(scene):
+        """
+        Pixel QA Bit Flags
+        Bit	Attribute
+        0	Fill
+        1	Clear
+        2	Water
+        3	Cloud Shadow
+        4	Snow
+        5	Cloud
+        6-7	Cloud Confidence (00 = None, 01 = Low, 10 = Medium, 11 = High)
+        """
+
+        qa = scene.select('pixel_qa')
+        clear = qa.bitwiseAnd(2).neq(0)
+        clear = clear.updateMask(clear).rename(['pxqa_clear'])
+
+        water = qa.bitwiseAnd(4).neq(0)
+        water = water.updateMask(water).rename(['pxqa_water'])
+
+        cloud_shadow = qa.bitwiseAnd(8).neq(0)
+        cloud_shadow = cloud_shadow.updateMask(cloud_shadow).rename(['pxqa_cloudshadow'])
+
+        snow = qa.bitwiseAnd(16).neq(0)
+        snow = snow.updateMask(snow).rename(['pxqa_snow'])
+
+        cloud = qa.bitwiseAnd(32).neq(0)
+        cloud = cloud.updateMask(cloud).rename(['pxqa_cloud'])
+
+        # Cloud confidence is comprised of bits 6-7.
+        # Add the two bits and interpolate them to a range from 0-3.
+        # 0 = None, 1 = Low, 2 = Medium, 3 = High.
+        cloud_conf = qa.bitwiseAnd(64).add(qa.bitwiseAnd(128)).interpolate([0, 64, 128, 192], [0, 1, 2, 3], 'clamp')
+        cloud_conf = cloud_conf.int().rename(['pxqa_cloudconf'])
+
+        masks = ee.Image.cat([
+            clear, water, cloud_shadow, snow,
+            cloud, cloud_conf
+        ])
+
+        # return scene.select(scene.bandNames().remove('pixel_qa')).addBands(masks)
+        return masks
+
+    def mask_qaclear_l8(self, scene):
+        clearmask = self.decode_qamask_l8(scene).select('pxqa_clear')
+        return scene.updateMask(clearmask)
+
+    def mask_qaclear_l57(self, scene):
+        clearmask = self.decode_qamask_l57(scene).select('pxqa_clear')
+        return scene.updateMask(clearmask)
+
+
 class LandsatJoined:
     def __init__(self, filterpoly, start_date, end_date):
-        self.toa = LandsatTOA(filterpoly, start_date, end_date)
-        self.sr = LandsatSR(filterpoly, start_date, end_date)
+        self.toa = LandsatTOAPRE(filterpoly, start_date, end_date)
+        self.sr = LandsatSRPRE(filterpoly, start_date, end_date)
         # TODO: does doing three joins separately cost more than a single all-inclusive join?
         self.l8 = joincoll(self.sr.l8sel, self.toa.l8sel).map(self._cast_img2float)
         self.l7 = joincoll(self.sr.l7sel, self.toa.l7sel).map(self._cast_img2float)
@@ -426,52 +587,6 @@ class LandsatJoined:
     @staticmethod
     def _cast_img2float(img):
         return img.toFloat()
-
-
-class LandsatPlus(object):
-    """
-    **** DEPRECATED: DO NOT USE ****
-    """
-    def __init__(self, filterpoly, start_date, end_date, fplus, fplusargs):
-        self._fplus = fplus
-        self.joined = LandsatJoined(filterpoly, start_date, end_date)
-        self.filterpoly = filterpoly
-        self.l8 = self._fplus(self.joined.l8, **fplusargs)
-        self.l7 = self._fplus(self.joined.l7, **fplusargs)
-        self.l5 = self._fplus(self.joined.l5, **fplusargs)
-        self.merged = ee.ImageCollection(self.l5.merge(self.l7).merge(self.l8))
-        self.merged = self.merged.sort('system:time_start')
-
-
-class LandsatPrecleaned(object):
-    """
-    **** DEPRECATED: DO NOT USE ****
-    """
-    def __init__(self, filterpoly, start_date, end_date, maskf, precleanscale=120, filtercloudlevel=0):
-        self.maskf = maskf
-        self.joined = LandsatJoined(filterpoly, start_date, end_date)
-        self.filterpoly = filterpoly
-        self.precleanscale = precleanscale
-        self.l8 = self.get_plus(self.joined.l8).filter(ee.Filter.gt('CLOUDFREE', filtercloudlevel))
-        self.l7 = self.get_plus(self.joined.l7).filter(ee.Filter.gt('CLOUDFREE', filtercloudlevel))
-        self.l5 = self.get_plus(self.joined.l5).filter(ee.Filter.gt('CLOUDFREE', filtercloudlevel))
-        self.merged = ee.ImageCollection(self.l5.merge(self.l7).merge(self.l8))
-        self.merged = self.merged.sort('system:time_start')
-
-    def get_plus(self, coll):
-        plus = coll.map(imgtools.add_latlon).map(imgtools.add_gcviband).map(imgtools.add_ndviband)
-        return plus.map(self._mask_and_count)
-
-    def _mask_and_count(self, img):
-        precount = imgtools.count_region(img, self.filterpoly, self.precleanscale)
-        img = img.set({'PRECOUNT': precount})
-        img = self.maskf(img)
-        postcount = imgtools.count_region(img, self.filterpoly, self.precleanscale)
-        img = img.set({
-            'POSTCOUNT': postcount,
-            'CLOUDFREE': postcount.divide(precount).multiply(100)
-        })
-        return img
 
 
 class MODISrefl(object):

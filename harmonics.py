@@ -183,7 +183,7 @@ def lx_hregr(region, start_date, end_date, omega=1.5, imgmask=None, bands=None, 
         independents = ee.List(['constant', 'cos', 'sin', 'cos2', 'sin2'])
 
     # TODO: update to new Collection1 collections
-    lx = optix.LandsatSR(region, start_date, end_date).mergedcfm
+    lx = optix.LandsatSR(region, start_date, end_date).mergedqam
     lx = lx.select(['BLUE', 'GREEN', 'RED', 'NIR', 'SWIR1', 'SWIR2']).map(optix.addVIs)
 
     if imgmask is not None:

@@ -22,6 +22,18 @@ def add_latlon(image):
     return image.addBands(ll.select(['longitude', 'latitude'], ['LON', 'LAT']))
 
 
+def _rename_band(val, suffix):
+    return ee.String(val).cat(ee.String("_")).cat(ee.String(suffix))
+
+
+def rename_bands(img, suffix):
+    bandnames = img.bandNames()
+    newnames = bandnames.map(lambda x: _rename_band(x, suffix))
+    return img.select(bandnames, newnames)
+
+
+
+
 # TODO: this is incomplete, needs review and to be extended to custom classes
 def stratify_cdl(year, npoints, region, allcrops, random_seed=1234):
 
