@@ -20,6 +20,8 @@ def append_band(current, previous):
 
 def add_timevars(image, tunit):
 
+    # TODO: update this to be a simpler add_timeunit. Other info are irrelevant to the regression.
+
     date = image.date()
     doy = date.getRelative('day', 'year').add(1)
     doyimage = image.select(0).multiply(0).add(doy).select([0], ['DOY']).toInt16()
