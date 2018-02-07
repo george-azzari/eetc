@@ -1,6 +1,6 @@
 import ee
 import arraycomposites
-import lndsatimgtools as imgtools
+import imgtools
 
 
 class Collection(object):
