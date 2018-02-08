@@ -8,6 +8,22 @@ Stanford University
 import ee
 
 
+def export_features(features, fname, export_to='drive'):
+
+    if export_to == 'drive':
+        task = ee.batch.Export.table.toDrive(features, fname, '')
+
+    else:
+        task = ee.batch.Export.table.toCloudStorage(features,
+                                                    description=fname,
+                                                    bucket='us-cdl-samples',
+                                                    fileNamePrefix=fname,
+                                                    fileFormat=None)
+    task.start()
+
+    return task
+
+
 def get_point(image, point, scale, depth):
 
     s = image.reduceRegion(
