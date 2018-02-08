@@ -42,6 +42,15 @@ def format_rand_id(sample, suffix):
     return sample.set('SAMPLEID', pointid)
 
 
+def _get_cdl_info(cdlpoint, vals, names, colors):
+
+    tval = ee.Number(cdlpoint.get('CDL'))
+    valindx = vals.indexOf(tval)
+
+    return cdlpoint.set('CDL_NAME', ee.String(names.get(valindx)),
+                        'CDL_COLOR', ee.String(colors.get(valindx)))
+
+
 def get_cdl_stratgrid(region, year, npoints, random_seed):
 
     cdl = get_cdl(year)
@@ -56,9 +65,19 @@ def get_cdl_stratgrid(region, year, npoints, random_seed):
         classPoints=[0, npoints],
         tileScale=16)
 
+    # Copy properties from region feature and add year
     samples = samples.map(lambda s: ee.Feature(s.copyProperties(region)).set('year', year))
 
-    return samples.randomColumn('rand', 3718).map(lambda p: format_rand_id(p, ee.String('-'+str(year))))
+    # Add class name and color based on value:
+    vals = ee.List(cdl.get('cropland_class_values'))
+    names = ee.List(cdl.get('cropland_class_names'))
+    colors = ee.List(cdl.get('cropland_class_palette'))
+    samples = samples.map(lambda p: _get_cdl_info(p, vals, names, colors))
+
+    # Finally, add unique ID based on county fips, random number, and year
+    samples = samples.randomColumn('rand', 3718).map(lambda p: format_rand_id(p, ee.String('-'+str(year))))
+
+    return samples
 
 
 def export_cdl_stratgrid(features, year, npoints, random_seed, fname, export_to='drive'):
