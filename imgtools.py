@@ -22,6 +22,30 @@ def add_latlon(image):
     return image.addBands(ll.select(['longitude', 'latitude'], ['LON', 'LAT']))
 
 
+def get_checkerboard(image, imgband, updmask, viz, color1, color2):
+    # Create a 0/1 checkerboard on a lon/lat grid: take the floor of lon and
+    # lat, add them together, and take the low-order bit
+    lonlat_checks = ee.Image.pixelLonLat().floor().toInt().reduce(ee.Reducer.sum()).bitwiseAnd(1)
+
+    # Get the image projection from one of the bands
+    imgproj = image.select([imgband]).projection()
+
+    # Now replace the projection of the lat/lon checkboard (WGS84 by default)
+    # with the desired projection.
+    # TODO: it would be a good idea to understand difference between changeProj and reproject.
+    imgchecks = lonlat_checks.changeProj(ee.Projection('EPSG:4326'), imgproj)
+
+    # If requested copy the footprint of the image onto the checkerboard,
+    # to avoid a global image.
+    if updmask:
+        imgchecks = imgchecks.updateMask(image.select([imgband]).mask())
+
+    if viz:
+        imgchecks = imgchecks.visualize({'min': 0, 'max': 1, 'palette': [color1, color2]})
+
+    return imgchecks
+
+
 def _rename_band(val, suffix):
     return ee.String(val).cat(ee.String("_")).cat(ee.String(suffix))
 
@@ -30,29 +54,3 @@ def rename_bands(img, suffix):
     bandnames = img.bandNames()
     newnames = bandnames.map(lambda x: _rename_band(x, suffix))
     return img.select(bandnames, newnames)
-
-
-
-
-# TODO: this is incomplete, needs review and to be extended to custom classes
-def stratify_cdl(year, npoints, region, allcrops, random_seed=1234):
-
-    cdlcoll = ee.ImageCollection("USDA/NASS/CDL")
-
-    cdl = ee.Image(cdlcoll.filter(ee.Filter.calendarRange(year, year, 'YEAR')).first())
-    cdl = cdl.select(['cropland'], ['CDL'])
-
-    cropmask = cdl.gte(196).add(cdl.lte(60))
-    cropmask = cropmask.add(cdl.gte(66).multiply(cdl.lte(77))).select([0], ['CROPMASK'])
-
-    tosample = add_latlon(cdl.updateMask(cropmask).addBands(cropmask))
-
-    samples = tosample.stratifiedSample(
-        numPoints=npoints,
-        classBand='CROPMASK',
-        region=region.geometry(),
-        scale=30,
-        seed=random_seed,
-        classValues=[0, 1],
-        classPoints=[0, npoints],
-        tileScale=16)

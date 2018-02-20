@@ -92,6 +92,8 @@ def addVIs(img):
     return ee.Image.cat([img, evi, gcvi, tvi, sndvi, ndvi, nbr1, nbr2, sti, ndti, crc])
 
 
+# TODO: add Landsat TOA (c01)
+
 class LandsatTOAPRE:
 
     def __init__(self, filterpoly, start_date, end_date):
