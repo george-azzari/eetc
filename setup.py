@@ -1,4 +1,4 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 REQUIRED_PACKAGES = [
     'gdal >= 2.2.4',
@@ -11,10 +11,10 @@ REQUIRED_PACKAGES = [
 
 setup(
     name='gee_tools',
-    packages=['gee_tools'],
+    packages=find_packages(exclude=['*.csv', '*.ipynb']),
     description='A collection of utility functions relating to Google Earth Engine.',
-    version='0.0',
-    url='https://github.com/george-azzari/gee_tools/',
+    version='0.0.0',
+    url='https://github.com/AtlasAIPBC/gee_tools.git',
     author='George Azzari',
     author_email='',
     keywords=['GEE', 'Earth Engine', 'Google Earth Engine'],
