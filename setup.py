@@ -1,7 +1,7 @@
 from setuptools import setup
 
 REQUIRED_PACKAGES = [
-    'gdal >= 2.3.1',
+    'gdal >= 2.2.4',
     'scipy >= 1.1.0',
     'matplotlib >= 2.2.2',
     'numpy >= 1.13.3',
@@ -12,7 +12,7 @@ REQUIRED_PACKAGES = [
 setup(
     name='gee_tools',
     packages=['gee_tools'],
-    description='A collection of utility function relating to Google Earth Engine.',
+    description='A collection of utility functions relating to Google Earth Engine.',
     version='0.0',
     url='https://github.com/george-azzari/gee_tools/',
     author='George Azzari',
