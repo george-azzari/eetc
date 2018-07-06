@@ -44,7 +44,7 @@ def get_point(image, point, scale, depth):
     })
 
 
-def sampleGridCore(image, grid, scale):
+def reducegrid_image(image, grid, scale):
 
     depth = image.bandNames().length()
     samples = grid.map(lambda point: get_point(image, point, scale, depth))
@@ -52,19 +52,65 @@ def sampleGridCore(image, grid, scale):
     return samples
 
 
-def sampleGridTS(imagecoll, grid, scale, control, doexport, fname):
+def reducegrid_imgcoll(imagecoll, grid, scale, control, doexport, fname):
 
     samples = imagecoll.map(
-       lambda image: sampleGridCore(image, grid, scale)
+       lambda image: reducegrid_image(image, grid, scale)
     ).flatten()
   
     samples = samples.filter(ee.Filter.neq(control, None))
   
     if doexport:
-        t = ee.batch.Export.table.toDrive(samples, fname, '')
-        t.start()
-
+        t = export_features(samples, fname, export_to='drive')
         return {'samples':samples, 'task':t}
+
+    else:
+        return samples
+
+
+def sampleregions_auto_image(image, regions, scale, controlvar, doexport, fname):
+
+    samples = image.sampleRegions(
+        collection=regions,
+        properties=None,
+        scale=scale,
+        projection=None,
+        tileScale=16)
+
+    samples = samples.filter(ee.Filter.neq(controlvar, None))
+
+    if doexport:
+        task = export_features(samples, fname, export_to='drive')
+        return {'samples': samples, 'task': task}
+
+    else:
+        return samples
+
+
+def sampleregion_image(image, region, scale, npx):
+
+    samples = image.sample(
+        region=region.geometry(),
+        scale=scale,
+        projection=None,
+        factor=None,
+        numPixels=npx,
+        seed=12345,
+        dropNulls=True,
+        tileScale=16)
+
+    samples = samples.map(lambda p: ee.Feature(p.copyProperties(region).copyProperties(image)))
+
+    return samples
+
+
+def sampleregions_image(image, regions, scale, npx, doexport, fname):
+
+    samples = regions.map(lambda region: sampleregion_image(image, region, scale, npx)).flatten()
+
+    if doexport:
+        task = export_features(samples, fname, export_to='drive')
+        return {'samples': samples, 'task': task}
 
     else:
         return samples
