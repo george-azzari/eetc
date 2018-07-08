@@ -1,0 +1,32 @@
+"""nonoptical_datasources unit test"""
+from nonoptical_datasources import DMSPCalV4, VIIRSMonthlyStrCorr, SRTMElevation, Palsar
+import constants
+import ee
+
+def test1(start_date, end_date, use_viirs, test_palsar=True):
+    scale = 30
+    if use_viirs:
+        nl = VIIRSMonthlyStrCorr(start_date, end_date).viirs
+    else:
+        nl = DMSPCalV4(start_date, end_date).dmsp
+    nl = nl.median().reproject(constants.EPSG3857, None, scale)
+
+    topo = SRTMElevation().topo.reproject(constants.EPSG3857, None, scale)
+    palsar = Palsar(start_date, end_date).palsar.mean().reproject(constants.EPSG3857, None, scale)
+    if len(nl.bandNames().getInfo()) != 1:
+        raise ValueError("Invalid nightlights bands")
+    if len(topo.bandNames().getInfo()) != 3:
+        raise ValueError("Invalue elevation bands")
+    palsar_bands = palsar.bandNames().getInfo()
+    if test_palsar and len(palsar_bands) != 5:
+        raise ValueError("Invalid pulsar bands\n{}".format(palsar_bands))
+
+def test2(start_date, end_date, use_viirs):
+    pass
+
+
+if __name__ == "__main__":
+    ee.Initialize()
+    test1('2009-1-1', '2011-12-31', False)
+    test1('2012-1-1', '2014-12-31', True, test_palsar=False)
+    test1('2015-1-1', '2017-12-31', True)
