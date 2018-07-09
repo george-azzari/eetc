@@ -53,6 +53,7 @@ def _sample_patch(point, patchesarray, scale, projection='EPSG:3857'):
     )
 
     arrays_samples = ee.Feature(arrays_samples.first())
+    arrays_samples = arrays_samples.setGeometry(point.geometry())
     return ee.Feature(arrays_samples.copyProperties(point))
 
 
