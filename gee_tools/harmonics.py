@@ -7,7 +7,7 @@ Stanford University
 
 import ee
 import numpy as np
-import optical_datasources as optix
+import gee_tools.datasources.optical_datasources as optix
 
 
 def append_band(current, previous):
