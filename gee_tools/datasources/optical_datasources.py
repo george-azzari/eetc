@@ -3,9 +3,12 @@ Author: George Azzari (gazzari@stanford.edu)
 Center on Food Security and the Environment
 Department of Earth System Science
 Stanford University
+
+Modified by Anthony Perez
 """
 
 import ee
+from gee_tools.datasources.interface import MultiImageDatasource, GlobalImageDatasource, SingleImageDatasource, DatasourceError
 
 
 def _mergejoin(joinedelement):
@@ -94,14 +97,11 @@ def addVIs(img):
 
 # TODO: add Landsat TOA (c01)
 
-class LandsatTOAPRE:
+class LandsatTOAPRE(MultiImageDatasource):
 
-    def __init__(self, filterpoly, start_date, end_date):
-
-        self.filterpoly = filterpoly
-
-        self.s = start_date
-        self.e = end_date
+    def build_img_coll(self):
+        self.s = self.start_date
+        self.e = self.end_date
 
         self.l8 = self._init_coll('LANDSAT/LC8_L1T_TOA_FMASK')
         self.l7 = self._init_coll('LANDSAT/LE7_L1T_TOA_FMASK')
@@ -113,6 +113,9 @@ class LandsatTOAPRE:
 
         self.merged = ee.ImageCollection(self.l5.merge(self.l7).merge(self.l8)).sort('system:time_start')
         self.mergedfm = ee.ImageCollection(self.l5fm.merge(self.l7fm).merge(self.l8fm)).sort('system:time_start')
+
+    def get_img_coll(self):
+        return self.mergedfm
 
     @staticmethod
     def _pansharpen(image):
@@ -229,11 +232,12 @@ class LandsatTOAPRE:
         return reflimg.addBands(thermimg)
 
 
-class LandsatSRPRE:
-    def __init__(self, filterpoly, start_date, end_date):
-        self.filterpoly = filterpoly
-        self.s = start_date
-        self.e = end_date
+class LandsatSRPRE(MultiImageDatasource):
+
+    def build_img_coll(self):
+        self.s = self.start_date
+        self.e = self.end_date
+
         self.l8 = self.init_coll8('LANDSAT/LC8_SR').map(self.fixwrs)
         self.l7 = self.init_coll('LANDSAT/LE7_SR').map(self.fixwrs)
         self.l5 = self.init_coll('LANDSAT/LT5_SR').map(self.fixwrs)
@@ -246,6 +250,9 @@ class LandsatSRPRE:
         self.merged = ee.ImageCollection(self.l5.merge(self.l7).merge(self.l8)).sort('system:time_start')
         self.mergedcfm = ee.ImageCollection(self.l5cfm.merge(self.l7cfm).merge(self.l8cfm)).sort('system:time_start')
         self.mergedqam = ee.ImageCollection(self.l5qam.merge(self.l7qam)).sort('system:time_start')
+
+    def get_img_coll(self):
+        return self.mergedqam
 
     def init_coll(self, name):
         return ee.ImageCollection(name).filterBounds(self.filterpoly).filterDate(self.s, self.e).map(self.rename_l457)
@@ -341,7 +348,7 @@ class LandsatSRPRE:
         return srimg.updateMask(clearpx)
 
 
-class LandsatSR:
+class LandsatSR(MultiImageDatasource):
     """
     Image Properties
 
@@ -360,11 +367,9 @@ class LandsatSR:
     WRS_PATH	            WRS-2 path number of scene
     WRS_ROW	                WRS row number of scene
     """
-    def __init__(self, filterpoly, start_date, end_date):
-
-        self.filterpoly = filterpoly
-        self.s = start_date
-        self.e = end_date
+    def build_img_coll(self):
+        self.s = self.start_date
+        self.e = self.end_date
 
         self.l8 = self.init_coll8('LANDSAT/LC08/C01/T1_SR').map(self.rename_l8).map(self.rescale_l8)
         self.l7 = self.init_coll('LANDSAT/LE07/C01/T1_SR').map(self.rename_l57).map(self.rescale_l57)
@@ -378,6 +383,9 @@ class LandsatSR:
         # Merging some of the collections that more commonly used
         self.merged = ee.ImageCollection(self.l5.merge(self.l7).merge(self.l8)).sort('system:time_start')
         self.mergedqam = ee.ImageCollection(self.l5qam.merge(self.l7qam).merge(self.l8qam)).sort('system:time_start')
+
+    def get_img_coll(self):
+        return self.mergedqam
 
     def init_coll(self, name):
         return ee.ImageCollection(name).filterBounds(self.filterpoly).filterDate(self.s, self.e).map(self.rename_l57)
@@ -575,10 +583,10 @@ class LandsatSR:
         return scene.updateMask(clearmask)
 
 
-class LandsatJoined:
-    def __init__(self, filterpoly, start_date, end_date):
-        self.toa = LandsatTOAPRE(filterpoly, start_date, end_date)
-        self.sr = LandsatSRPRE(filterpoly, start_date, end_date)
+class LandsatJoined(MultiImageDatasource):
+    def build_img_coll(self):
+        self.toa = LandsatTOAPRE(self.filterpoly, self.start_date, self.end_date)
+        self.sr = LandsatSRPRE(self.filterpoly, self.start_date, self.end_date)
         # TODO: does doing three joins separately cost more than a single all-inclusive join?
         self.l8 = joincoll(self.sr.l8sel, self.toa.l8sel).map(self._cast_img2float)
         self.l7 = joincoll(self.sr.l7sel, self.toa.l7sel).map(self._cast_img2float)
@@ -586,61 +594,76 @@ class LandsatJoined:
         self.merged = ee.ImageCollection(self.l5.merge(self.l7).merge(self.l8))
         self.merged = self.merged.sort('system:time_start')
 
+    def get_img_coll(self):
+        return self.merged
+
     @staticmethod
     def _cast_img2float(img):
         return img.toFloat()
 
 
-class MODISrefl(object):
-    def __init__(self, start_date, end_date):
+class MODISrefl(GlobalImageDatasource):
+    """
+    Global:  filterpoly is ignored.
+    """
+
+    def __init__(self, start_date, end_date, **kwargs):
         self.newnames = ['RED', 'NIR', 'BLUE', 'GREEN', 'SWIR1', 'SWIR2']
         self.orignames = None
         self.collname = None
         self.coll = None
         self.start_date = start_date
         self.end_date = end_date
+        self.build_img_coll(**kwargs)
 
     def rename(self, img):
         return img.select(self.orignames, self.newnames)
+
+    def get_img_coll(self):
+        return self.coll
 
 
 class MODISnbar(MODISrefl):
     """
     MODIS BRDF-adjusted Reflectance 16-day Global 500m
     """
-    def __init__(self, start_date, end_date):
-        MODISrefl.__init__(self, start_date, end_date)
+    def build_img_coll(self):
         self.orignames = ['Nadir_Reflectance_Band1', 'Nadir_Reflectance_Band2', 'Nadir_Reflectance_Band3',
                           'Nadir_Reflectance_Band4', 'Nadir_Reflectance_Band6', 'Nadir_Reflectance_Band7']
         self.collname = "MODIS/MCD43A4"
-        self.coll = ee.ImageCollection(self.collname).filterDate(start_date, end_date).map(self.rename)
+        self.coll = ee.ImageCollection(self.collname).filterDate(self.start_date, self.end_date).map(self.rename)
 
 
 class MODISsr(MODISrefl):
     """
     MODIS Surface Reflectance 8-Day Global 500m
     """
-    def __init__(self, start_date, end_date):
-        MODISrefl.__init__(self, start_date, end_date)
+    def build_img_coll(self):
         self.orignames = ['sur_refl_b01', 'sur_refl_b02', 'sur_refl_b03',
                           'sur_refl_b04', 'sur_refl_b06', 'sur_refl_b07']
         self.collname = "MODIS/MOD09A1"
-        self.coll = ee.ImageCollection(self.collname).filterDate(start_date, end_date).map(self.rename)
+        self.coll = ee.ImageCollection(self.collname).filterDate(self.start_date, self.end_date).map(self.rename)
 
 
-class Sentinel2TOA(object):
-
-    def __init__(self, filterpoly, start_date, end_date):
-
-        self.filterpoly = filterpoly
-
-        self.s = start_date
-
-        self.e = end_date
+class Sentinel2TOA(MultiImageDatasource):
 
     def init_coll(self, name):
-
         return ee.ImageCollection(name).filterBounds(self.filterpoly).filterDate(self.s, self.e).map(self.rename)
+
+    def build_img_coll(self, name=None):
+        self.s = self.start_date
+        self.e = self.end_date
+        self.name = name
+
+        if name is None:
+            self.coll = None
+        else:
+            self.coll = self.init_coll(name)
+
+    def get_img_coll(self):
+        if self.coll is None:
+            raise DatasourceError("Missing collection, make sure name is not None.  Name was {}".format(self.name))
+        return self.coll
 
     @staticmethod
     def qa_cloudmask(img):

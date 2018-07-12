@@ -39,12 +39,12 @@ def tfexporter(samples, tocloud, selectors, dropselectors, mybucket, prefix, fna
     return task
 
 
-def _sample_patch(point, patchesarray, scale):
+def _sample_patch(point, patchesarray, scale, projection='EPSG:3857'):
     arrays_samples = patchesarray.sample(
         region=point.geometry(),
         scale=scale,
         #           projection='EPSG:32610',
-        projection='EPSG:3857',
+        projection=projection,
         factor=None,
         numPixels=None,
         dropNulls=False,
@@ -53,11 +53,15 @@ def _sample_patch(point, patchesarray, scale):
     )
 
     arrays_samples = ee.Feature(arrays_samples.first())
+    arrays_samples = arrays_samples.setGeometry(point.geometry())
     return ee.Feature(arrays_samples.copyProperties(point))
 
 
 def get_array_patches(img, scale, ksize, points, doexport, tocloud,
                       selectors, dropselectors, mybucket, prefix, fname):
+    """
+    Will sample the img using the EPSG:3857 projection, make sure points are in EPSG:3857
+    """
 
     kern = ee.Kernel.square(ksize, 'pixels')
     patches_array = img.neighborhoodToArray(kern)
