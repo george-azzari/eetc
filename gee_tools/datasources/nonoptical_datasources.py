@@ -2,13 +2,12 @@
 Author: Anthony Perez
 
 Each class represents a datasource and will have a property containing an image collection.
-TODO - maybe for this and for optical_datasources in gee_tools.py, you should have some standard format to list the image collections.
-i.e. maybe a dict from image collection name to image collection.
 """
 import ee
 from gee_tools.datasources.interface import MultiImageDatasource, GlobalImageDatasource, SingleImageDatasource, DatasourceError
 
 class NightlightDatasource(GlobalImageDatasource):
+    """Abstract class for nightlights datasources"""
 
     def init_coll(self, name):
         return ee.ImageCollection(name) \
@@ -22,17 +21,26 @@ class NightlightDatasource(GlobalImageDatasource):
         return scene.select([0], ['NIGHTLIGHTS'])
 
 
-class DMSPCalV4(NightlightDatasource):
+class DMSPUncal(NightlightDatasource):
     """
-    IMAGE PROPERTIES
-
-    TODO Projection
-
-    Note: is global
+    Uncalibrated DMSP nightlights
+    Data in property dmsp
     """
 
     def build_img_coll(self):
-        """Data in property dmsp"""
+        self.dmsp = self.init_coll("NOAA/DMSP-OLS/NIGHTTIME_LIGHTS")
+
+    def get_img_coll(self):
+        return self.dmsp
+
+
+class DMSPCalV4(NightlightDatasource):
+    """
+    Calibrated DMSP nightlights
+    Data in property dmsp
+    """
+
+    def build_img_coll(self):
         self.dmsp = self.init_coll("NOAA/DMSP-OLS/CALIBRATED_LIGHTS_V4")
 
     def get_img_coll(self):
@@ -41,13 +49,11 @@ class DMSPCalV4(NightlightDatasource):
 
 class VIIRSMonthlyStrCorr(NightlightDatasource):
     """
-    TODO
-
-    Note: is global
+    Calibrated VIIRS nightlights
+    Data in property viirs
     """
 
     def build_img_coll(self):
-        """Data in property viirs"""
         self.viirs = self.init_coll("NOAA/VIIRS/DNB/MONTHLY_V1/VCMSLCFG")
 
     def get_img_coll(self):
@@ -56,7 +62,6 @@ class VIIRSMonthlyStrCorr(NightlightDatasource):
 
 class SRTMElevation(SingleImageDatasource):
     """
-
     Note: Near global
     """
 
@@ -79,6 +84,8 @@ class Palsar(GlobalImageDatasource):
     angle	Local incidence angle (degrees).
     date	Observation date (days since Jan 1, 1970).
     qa	    Processing information.
+
+    Renamed to ["HH", "HV", "ANGLE", "DATE", "QA"]
     """
 
     def build_img_coll(self):
