@@ -60,6 +60,36 @@ class VIIRSMonthlyStrCorr(NightlightDatasource):
         return self.viirs
 
 
+class DMSPCalVIIRSJoined(NightlightDatasource):
+    """
+    Returns the VIIRS image collection 'NOAA/VIIRS/DNB/MONTHLY_V1/VCMSLCFG'
+    if the request date range is either after 2014 or contains 2014.
+    2014 is the starting year for the VIIRS image collection listed above.
+
+    Otherwise returns the calibrated DMSP image collection "NOAA/DMSP-OLS/CALIBRATED_LIGHTS_V4"
+    """
+
+    def build_img_coll(self):
+        viirs = self.init_coll("NOAA/VIIRS/DNB/MONTHLY_V1/VCMSLCFG")
+        dmsp = self.init_coll("NOAA/DMSP-OLS/CALIBRATED_LIGHTS_V4")
+
+        # Carefull not to communicate to the server
+        requested_daterange = ee.DateRange(self.start_date, self.end_date)
+        viirs_start = ee.Date('2014-1-1')
+        use_viirs = requested_daterange.contains(viirs_start)
+
+        start_year = ee.Number(ee.Date(self.start_date).get('year'))
+        viirs_start_year = ee.Number(viirs_start.get('year'))
+        use_viirs2 = start_year.gte(viirs_start_year)
+
+        self.nl = ee.Algorithms.If(use_viirs, viirs, dmsp)
+        self.nl = ee.Algorithms.If(use_viirs2, viirs, self.nl)
+        self.nl = ee.ImageCollection(self.nl)
+    
+    def get_img_coll(self):
+        return self.nl
+
+
 class SRTMElevation(SingleImageDatasource):
     """
     Note: Near global
