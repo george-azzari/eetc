@@ -1,5 +1,6 @@
 """Defines the interfaces for datasources"""
 # Author: Anthony Perez
+import abc
 
 class DatasourceError(RuntimeError):
     pass
@@ -12,12 +13,15 @@ class ImageDatasource(object):
     See MultiImageDatasouerce GlobalImageDatasource and SingleImageDatasource
     """
 
+    __metaclass__ = abc.ABCMeta
+
     def build_img_coll(self, **kwargs):
-        """Builds Image Collection(s)"""
+        """Build Image Collection(s)"""
         raise NotImplementedError
 
+    @abc.abstractmethod
     def get_img_coll(self):
-        """Returns one image collection"""
+        """Return one image collection"""
         raise NotImplementedError
 
 class MultiImageDatasource(ImageDatasource):
@@ -32,7 +36,7 @@ class MultiImageDatasource(ImageDatasource):
         start_date, end_date: strings of the form YYYY-MM-DD, used to filter the image collection
         kwargs are passed to self.build_img_coll
 
-        This constructor is binding to superclasses
+        This constructor signature is binding to superclasses
         """
         # TODO check arguments for errors
         self.filterpoly = filterpoly
@@ -51,7 +55,7 @@ class GlobalImageDatasource(ImageDatasource):
         start_date, end_date: strings of the form YYYY-MM-DD, used to filter the image collection
         kwargs are passed to self.build_img_coll
 
-        This constructor is binding to superclasses
+        This constructor signature is binding to superclasses
         """
         # TODO check arguments for errors
         self.start_date = start_date
@@ -66,6 +70,6 @@ class SingleImageDatasource(ImageDatasource):
 
     def __init__(self, **kwargs):
         """
-        This constructor is binding to superclasses
+        This constructor signature is binding to superclasses
         """
         self.build_img_coll(**kwargs)
