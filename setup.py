@@ -19,4 +19,5 @@ setup(
     author_email='',
     keywords=['GEE', 'Earth Engine', 'Google Earth Engine'],
     install_requires=REQUIRED_PACKAGES,
+    python_requires="~=2.7"
 )
