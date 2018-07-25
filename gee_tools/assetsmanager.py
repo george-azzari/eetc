@@ -4,6 +4,16 @@ import re
 from googlecloud import list_objects as lobjs
 
 
+"""
+NOTE: this requires setting up a service account: 
+https://developers.google.com/accounts/docs/application-default-credentials.
+
+And then point env var GOOGLE_APPLICATION_CREDENTIALS to JSON path. For example:
+export GOOGLE_APPLICATION_CREDENTIALS="/home/user/Downloads/[FILE_NAME].json"
+
+"""
+
+
 def upload_asset_core(gsfilepath, eefolderpath, nodata=-32768):
     """
     Upload and ingest asset in EE starting from its path in Google Cloud Storage.
