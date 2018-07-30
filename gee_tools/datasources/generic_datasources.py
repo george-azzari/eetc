@@ -13,7 +13,7 @@ class GenericSingleImageDatasource(SingleImageDatasource):
         if image_args is None:
             raise ValueError('image_args must be provided, but was None')
         self.img = ee.Image(image_args)
-        self.coll = ee.ImageCollection([self.img])
+        self.coll = ee.ImageCollection(self.img)
 
     def get_img_coll(self):
         return self.coll
