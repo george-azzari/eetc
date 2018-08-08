@@ -103,7 +103,7 @@ class SRTMElevation(SingleImageDatasource):
 
     def get_img_coll(self):
         return self.coll
-    
+
 
 class Palsar(GlobalImageDatasource):
     """

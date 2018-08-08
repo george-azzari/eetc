@@ -1,7 +1,17 @@
 import ee
 import json
-import googlecloud
 import re
+from googlecloud import list_objects as lobjs
+
+
+"""
+NOTE: this requires setting up a service account: 
+https://developers.google.com/accounts/docs/application-default-credentials.
+
+And then point env var GOOGLE_APPLICATION_CREDENTIALS to JSON path. For example:
+export GOOGLE_APPLICATION_CREDENTIALS="/home/user/Downloads/[FILE_NAME].json"
+
+"""
 
 
 def upload_asset_core(gsfilepath, eefolderpath, nodata=-32768):
@@ -14,7 +24,14 @@ def upload_asset_core(gsfilepath, eefolderpath, nodata=-32768):
     """
     fname = gsfilepath.split('/')[-1]
     eeasset_name = fname.split('.')[0]  # getting rid of file extension
-    eeasset_path = eefolderpath+eeasset_name
+    if eefolderpath[-1] == '/':
+        eeasset_path = eefolderpath+eeasset_name
+    else:
+        eeasset_path = eefolderpath + '/' + eeasset_name
+
+    print 'Uploading from GCP source: ' + gsfilepath
+    print 'Ingesting to EE asset: ' + eeasset_path
+
     request = {"id": eeasset_path,
                "tilesets": [
                    {"sources": [
@@ -23,44 +40,60 @@ def upload_asset_core(gsfilepath, eefolderpath, nodata=-32768):
                    ]}
                ],
                "bands": [],
-               "reductionPolicy": "MEAN",
+               "pyramidingPolicy": "MEAN",
                "missingData": {"value": nodata}}
+
     taskid = ee.data.newTaskId(1)[0]
     t = ee.data.startIngestion(taskid, request)
+
     return t
 
 
-def auto_upload(gsbucket, eefolderpath, nodata=-32768):
+def auto_upload(gsbucket, gsprefix, eefolderpath, nodata=-32768):
     """
     Upload and ingest all assets contained in Google Cloud Storage bucket.
     :param gsbucket:
+    :param gsprefix:
     :param eefolderpath:
     :param nodata:
     :return:
     """
-    bucketlist = googlecloud.list_bucket(gsbucket)
-    filenames = [b['name'] for b in bucketlist]
+
+    fx = lambda f: (f.split('.')[-1] == 'tiff') and (gsprefix in f)
+    bucketlist = lobjs.list_bucket(gsbucket)
+    filenames = [b['name'] for b in bucketlist if fx(b['name'])]
+    tasks = []
+
     for f in filenames:
         gsfilepath = "gs://{0}/{1}".format(gsbucket, f)
-        upload_asset_core(gsfilepath, eefolderpath, nodata=nodata)
+        t = upload_asset_core(gsfilepath, eefolderpath, nodata=nodata)
+        tasks.append(t)
+
+    return tasks
 
 
-def autoupdate_assets(eefolderpath, yearindx=-1, stateindx=0, readers=['dblobell@gmail.com']):
+def autoupdate_assets(eefolderpath, propdict, sep):
     """
-    This is based on this type of asset id:
-    'users/georgeazzari/scym_usa_v0/illinois_maize_yield_2000'
+    Update the properties of all assets in 'eefolderpath' based on their file name. Mapping between file name
+    chunks (separated by 'sep') and asset properties must be provided in 'propdict'.
+    :param eefolderpath:
+    :param propdict:
+    :param sep:
+    :return:
     """
+
     assets_dicts = ee.data.getList(dict(id=eefolderpath))
+
     for ad in assets_dicts:
-        info = ad['id'].split('/')[-1].split('_')
-        if yearindx is not None:
-            ee.data.setAssetProperties(ad['id'], dict(year=int(info[yearindx])))
-        if stateindx is not None:
-            ee.data.setAssetProperties(ad['id'], dict(state=info[stateindx]))
-        if readers is not None:
-            d = dict(writers=[], readers=readers)
-            j = json.dumps(d)
-            ee.data.setAssetAcl(ad['id'], j)
+
+        info = ad['id'].split('/')[-1].split(sep)
+        print('Update properties of asset ' + ad['id'])
+
+        for k in propdict.keys():
+
+            info_k = info[int(k)]
+            prop = propdict[k]
+            ee.data.setAssetProperties(ad['id'], {prop: info_k})
 
 
 def autoupdate_wrsassets(eefolderpath, yearindx=-2, wrsindx=2, readers=['dblobell@gmail.com']):

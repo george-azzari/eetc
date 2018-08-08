@@ -18,7 +18,7 @@ def get_closest_to_date(img_coll, date):
         closest_diff = ee.Number(date.difference(closest_date, 'day')).abs()
         return ee.Algorithms.If(closest_diff.gte(curr_diff),
                                 current_scene,
-                                closest_date)
+                                closest_scene)
 
     return ee.Image(img_coll.iterate(closest, img_coll.first()))
 
