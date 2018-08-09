@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 REQUIRED_PACKAGES = [
-    'gdal >= 2.2.4',
+    'gdal >= 1.10.1',
     'scipy >= 1.1.0',
     'matplotlib >= 2.2.2',
     'numpy >= 1.13.3',
