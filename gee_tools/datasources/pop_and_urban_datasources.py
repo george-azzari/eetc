@@ -144,3 +144,15 @@ class GHSLUrban(GlobalImageDatasource):
         if separate:
             return ["INHABITED", "RUR", "LDC", "HDC"]
         return ['SMOD']
+
+
+class CityAccessibility(SingleImageDatasource):
+    """Oxford/MAP/accessibility_to_cities_2015_v1_0"""
+
+    def build_img_coll(self):
+        self.dist_to_road = ee.Image("Oxford/MAP/accessibility_to_cities_2015_v1_0")
+        self.dist_to_road = self.dist_to_road.select(['accessibility'], ['ACCESSIBILITY'])
+        self.coll = ee.ImageCollection([self.dist_to_road])
+
+    def get_img_coll(self):
+        return self.coll
