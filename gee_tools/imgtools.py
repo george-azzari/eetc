@@ -54,3 +54,36 @@ def rename_bands(img, suffix):
     bandnames = img.bandNames()
     newnames = bandnames.map(lambda x: _rename_band(x, suffix))
     return img.select(bandnames, newnames)
+
+
+def addDOY(image):
+    date = image.date()
+    doy = date.getRelative('day', 'year').add(1)
+    month = date.getRelative('month', 'year')
+
+    return image.addBands(ee.Image(doy).select([0], ['DOY']).toInt16()).set(
+        'DOY', doy,
+        'MONTH', month,
+        'YEAR', date.get('year'),
+        'DATE', date.format(),
+        'MSTIMESTAMP', ee.Number(image.get('system:time_start'))
+    )
+
+
+def getScaledImage(img, scaler):
+    """
+    /* The "scaler" parameter is a ee.Dictionary with bands name and corresponding scaling factors.
+    *  NOTE: return only selected bands, with no properties from input image.*/
+    """
+    scalingimg = ee.Image.constant(scaler.values()).rename(scaler.keys())
+    scaledimg = img.select(scaler.keys()).multiply(scalingimg)
+    return ee.Image(scaledimg.copyProperties(img))
+
+
+def getGLCMTexture(image, size, kernel, average, intscaler):
+    scaledbands = getScaledImage(image, intscaler).toInt32()
+    return scaledbands.glcmTexture({
+        size: size,
+        kernel: kernel,
+        average: average
+    })
