@@ -230,7 +230,7 @@ class LandsatTOAPRE(MultiImageDatasource):
         thermimg = l5img.select([5], thermbands)
 
         return reflimg.addBands(thermimg)
-    
+
 
 class LandsatSR(MultiImageDatasource):
     """
@@ -465,26 +465,7 @@ class LandsatSR(MultiImageDatasource):
     def mask_qaclear_l57(self, scene):
         clearmask = self.decode_qamask_l57(scene).select('pxqa_clear')
         return scene.updateMask(clearmask)
-
-
-class LandsatJoined(MultiImageDatasource):
-    def build_img_coll(self):
-        self.toa = LandsatTOAPRE(self.filterpoly, self.start_date, self.end_date)
-        self.sr = LandsatSRPRE(self.filterpoly, self.start_date, self.end_date)
-        # TODO: does doing three joins separately cost more than a single all-inclusive join?
-        self.l8 = joincoll(self.sr.l8sel, self.toa.l8sel).map(self._cast_img2float)
-        self.l7 = joincoll(self.sr.l7sel, self.toa.l7sel).map(self._cast_img2float)
-        self.l5 = joincoll(self.sr.l5sel, self.toa.l5sel).map(self._cast_img2float)
-        self.merged = ee.ImageCollection(self.l5.merge(self.l7).merge(self.l8))
-        self.merged = self.merged.sort('system:time_start')
-
-    def get_img_coll(self):
-        return self.merged
-
-    @staticmethod
-    def _cast_img2float(img):
-        return img.toFloat()
-
+    
 
 class MODISrefl(GlobalImageDatasource):
     """
