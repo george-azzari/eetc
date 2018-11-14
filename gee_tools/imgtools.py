@@ -107,8 +107,8 @@ def getGLCMTexture(image, size, kernel, average, intscaler):
 
     scaledbands = getScaledImage(image, intscaler).toInt32()
 
-    return scaledbands.glcmTexture({
-        size: size,
-        kernel: kernel,
-        average: average
-    })
+    return scaledbands.glcmTexture(
+        size=size,
+        kernel=kernel,
+        average=average
+    )

@@ -49,13 +49,13 @@ class Sentinel1(MultiImageDatasource):
             iw = iw.map(lambda img: self.addBands(img, ''))
 
             if addspeckle:
-                iw = iw.map( lambda img: self.addBands(img, '_RLSPCK'))
+                iw = iw.map(lambda img: self.addBands(img, '_RLSPCK'))
 
         if addtexture:
             iw = iw.map(lambda img: img.addBands(self.getS1Texture(img, 4, '')))
 
             if addspeckle:
-              iw = iw.map(lambda img: img.addBands(self.getS1Texture(img, 4, addbands, '_RLSPCK')))
+              iw = iw.map(lambda img: img.addBands(self.getS1Texture(img, 4, '_RLSPCK')))
 
         return iw
 
@@ -147,8 +147,8 @@ class Sentinel1(MultiImageDatasource):
         # Define scaling dictionary (GLCM wants int images).
         scaler = ee.Dictionary.fromLists(polbands, ee.List.repeat(1e4, polbands.size()))
 
-        # Get GLCM bands, copy properties from source and return.
-        glcmtxt = getGLCMTexture(image, radius, None, True, ee.Dictionary(scaler))
+        # Get GLCM bands, copy properties from source and return (setting to default kernel and average mode).
+        glcmtxt = getGLCMTexture(image, radius, None, True, scaler)
 
         return ee.Image(glcmtxt.copyProperties(image))
 
@@ -174,7 +174,7 @@ class Sentinel1(MultiImageDatasource):
         # And finally the local incidence angle
         lia = inc.subtract(ee.Image.constant(90).subtract(ee.Image.constant(90).subtract(slope_projected))).abs()
 
-        return image.addBands(lia.select([0],['LIA']))
+        return image.addBands(lia.select([0], ['LIA']))
 
     def correctLIA(self, image, slope, aspect):
         """
@@ -196,7 +196,7 @@ class Sentinel1(MultiImageDatasource):
 
         return image.addBands(vh, None, True).addBands(vv, None, True)
 
-    def addBands(self, img, sufx):
+    def addBands(self, img, sufx=''):
         """
         Add extra bands, such as difference and ration of VV and VH.
         Will fill in Google docstring format later.
@@ -241,7 +241,7 @@ class Sentinel1(MultiImageDatasource):
             [0,0,0,0,0,0,0]
         ])
 
-        sample_kernel = ee.Kernel.fixed(7,7, sample_weights, 3,3, False)
+        sample_kernel = ee.Kernel.fixed(7, 7, sample_weights, 3, 3, False)
 
         # Calculate mean and variance for the sampled windows and store as 9 bands
         sample_mean = mean3.neighborhoodToBands(sample_kernel)
@@ -339,7 +339,7 @@ class Sentinel1(MultiImageDatasource):
         """
 
         band = ee.String(band)
-        s1natimg = self.toNatural(s1dbimg.select(band))
+        s1natimg = self.toNatural(ee.Image(s1dbimg).select(band))
         spck = self._RefinedLee(s1natimg)
 
         return self.toDB(spck.select([0], [band.cat('_RLSPCK')]))
@@ -353,7 +353,7 @@ class Sentinel1(MultiImageDatasource):
 
         polbands = self.getPolBands(dbimg, '')
 
-        splist = polbands.map(lambda b: self._apply_rl(b, dbimg))
+        splist = polbands.map(lambda b: self._apply_rl(dbimg, b))
         spimg = ee.Image(ee.ImageCollection.fromImages(splist).iterate(appendBand))
 
         return dbimg.addBands(spimg)
