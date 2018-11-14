@@ -15,7 +15,7 @@ class Sentinel2TOA(MultiImageDatasource):
         self.coll = ee.ImageCollection(self.name).filterBounds(self.filterpoly)
         self.coll = self.coll.filterDate(self.start_date, self.end_date).map(self.rename)
 
-    def get_img_coll(self, decodeQA, addVIs, addRDVIs, addCloudMasks):
+    def get_img_coll(self, addVIs, addRDVIs, addCloudMasks):
 
         s2 = self.coll
 
