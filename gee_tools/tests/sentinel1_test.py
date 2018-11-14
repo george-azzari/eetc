@@ -1,5 +1,4 @@
 from gee_tools.datasources import sentinel1
-from gee_tools.seasonal import getS1Plus
 import ee
 
 
