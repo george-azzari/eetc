@@ -52,6 +52,8 @@ def _sample_patch(point, patchesarray, scale, projection='EPSG:3857'):
 
     )
 
+    # TODO: Will give Feature.setGeometry: Parameter 'feature' is required.
+    # If the image is masked at point's location.
     arrays_samples = ee.Feature(arrays_samples.first())
     arrays_samples = arrays_samples.setGeometry(point.geometry())
     return ee.Feature(arrays_samples.copyProperties(point))

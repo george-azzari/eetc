@@ -18,7 +18,7 @@ def get_closest_to_date(img_coll, date):
         closest_diff = ee.Number(date.difference(closest_date, 'day')).abs()
         return ee.Algorithms.If(closest_diff.gte(curr_diff),
                                 current_scene,
-                                closest_date)
+                                closest_scene)
 
     return ee.Image(img_coll.iterate(closest, img_coll.first()))
 
@@ -144,3 +144,15 @@ class GHSLUrban(GlobalImageDatasource):
         if separate:
             return ["INHABITED", "RUR", "LDC", "HDC"]
         return ['SMOD']
+
+
+class CityAccessibility(SingleImageDatasource):
+    """Oxford/MAP/accessibility_to_cities_2015_v1_0"""
+
+    def build_img_coll(self):
+        self.dist_to_road = ee.Image("Oxford/MAP/accessibility_to_cities_2015_v1_0")
+        self.dist_to_road = self.dist_to_road.select(['accessibility'], ['ACCESSIBILITY'])
+        self.coll = ee.ImageCollection([self.dist_to_road])
+
+    def get_img_coll(self):
+        return self.coll
