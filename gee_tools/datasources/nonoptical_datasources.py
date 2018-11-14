@@ -6,6 +6,7 @@ Each class represents a datasource and will have a property containing an image 
 import ee
 from gee_tools.datasources.interface import MultiImageDatasource, GlobalImageDatasource, SingleImageDatasource, DatasourceError
 
+
 class NightlightDatasource(GlobalImageDatasource):
     """Abstract class for nightlights datasources"""
 
@@ -87,6 +88,7 @@ class DMSPCalVIIRSJoined(NightlightDatasource):
         self.nl = ee.ImageCollection(self.nl)
     
     def get_img_coll(self):
+        # TODO: not sure why this is helpful. All it's doing is returning a class method (George).
         return self.nl
 
 
@@ -119,11 +121,12 @@ class Palsar(GlobalImageDatasource):
     """
 
     def build_img_coll(self):
-            self.palsar = ee.ImageCollection("JAXA/ALOS/PALSAR/YEARLY/SAR") \
-                            .filterDate(self.start_date, self.end_date) \
-                            .map(self.rename_pulsar) \
-                            .map(self.mask_qa) \
-                            .sort('system:time_start')
+
+        self.palsar = ee.ImageCollection("JAXA/ALOS/PALSAR/YEARLY/SAR") \
+                        .filterDate(self.start_date, self.end_date) \
+                        .map(self.rename_pulsar) \
+                        .map(self.mask_qa) \
+                        .sort('system:time_start')
 
     def get_img_coll(self):
         return self.palsar
