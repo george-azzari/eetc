@@ -8,7 +8,8 @@ Modified by Anthony Perez
 """
 
 import ee
-from gee_tools.datasources.interface import MultiImageDatasource, GlobalImageDatasource, SingleImageDatasource, DatasourceError
+from gee_tools.datasources.interface import MultiImageDatasource, GlobalImageDatasource
+from gee_tools.datasources.interface import DatasourceError
 
 
 def _mergejoin(joinedelement):
@@ -465,7 +466,7 @@ class LandsatSR(MultiImageDatasource):
     def mask_qaclear_l57(self, scene):
         clearmask = self.decode_qamask_l57(scene).select('pxqa_clear')
         return scene.updateMask(clearmask)
-    
+
 
 class MODISrefl(GlobalImageDatasource):
     """
