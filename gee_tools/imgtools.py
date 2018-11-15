@@ -90,7 +90,6 @@ def appendBand(current, previous):
 
 
 def getScaledImage(img, scaler):
-
     """
     The "scaler" parameter is a ee.Dictionary with bands name and corresponding scaling factors.
     NOTE: return only selected bands, with no properties from input image.*/
