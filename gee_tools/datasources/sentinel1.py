@@ -16,7 +16,20 @@ class Sentinel1(MultiImageDatasource):
         self.coll = self.coll.filterDate(self.start_date, self.end_date)
 
     def get_img_coll(self, correctlia=False, addbands=True, addspeckle=True, addtexture=False, orbit='ascending'):
-
+"""
+    Args:
+        correctlia (bool):  If True, call self.correctLIA with SRTM terrain features.
+            Defaults to False.
+        addbands (bool):  If True, add bands for vv - vh and vh / vv with names 'DIFF' and 'RATIO'.  If addspeckle is 
+            True, then 'DIFF_RLSPCK' and 'RATIO_RLSPCK' are also added.  Defaults to True.
+        addtexture (bool):  TODO.
+            Defaults to False.
+        orbit (str):  One of 'ascending' or 'descending'.  Filter on the 'orbitProperties_pass' pass property.
+            Defaults to 'ascending'.
+            
+    Returns:
+        (ee.ImageCollection):  Sentinel 1 image collection filtered and modified as described by the arguments.
+"""
         # Filter to get images from different look angles.
         if orbit == 'ascending':
             orbfilter = ee.Filter.eq('orbitProperties_pass', 'ASCENDING')
