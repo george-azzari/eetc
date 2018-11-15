@@ -48,7 +48,6 @@ def get_checkerboard(image, imgband, updmask, viz, color1, color2):
 
 
 def _rename_band(val, suffix):
-
     return ee.String(val).cat(ee.String("_")).cat(ee.String(suffix))
 
 
