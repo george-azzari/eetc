@@ -8,7 +8,8 @@ Modified by Anthony Perez
 """
 
 import ee
-from gee_tools.datasources.interface import MultiImageDatasource, GlobalImageDatasource, SingleImageDatasource, DatasourceError
+from gee_tools.datasources.interface import MultiImageDatasource, GlobalImageDatasource
+from gee_tools.datasources.interface import DatasourceError
 
 
 def _mergejoin(joinedelement):
@@ -230,122 +231,6 @@ class LandsatTOAPRE(MultiImageDatasource):
         thermimg = l5img.select([5], thermbands)
 
         return reflimg.addBands(thermimg)
-
-
-class LandsatSRPRE(MultiImageDatasource):
-
-    def build_img_coll(self):
-        self.s = self.start_date
-        self.e = self.end_date
-
-        self.l8 = self.init_coll8('LANDSAT/LC8_SR').map(self.fixwrs)
-        self.l7 = self.init_coll('LANDSAT/LE7_SR').map(self.fixwrs)
-        self.l5 = self.init_coll('LANDSAT/LT5_SR').map(self.fixwrs)
-        self.l8cfm = self.l8.map(self.cfmask)
-        self.l7cfm = self.l7.map(self.cfmask)
-        self.l5cfm = self.l5.map(self.cfmask)
-        self.l7qam = self.l7.map(self.mask_qa)
-        self.l5qam = self.l5.map(self.mask_qa)
-        # todo: update names to actual colors
-        self.merged = ee.ImageCollection(self.l5.merge(self.l7).merge(self.l8)).sort('system:time_start')
-        self.mergedcfm = ee.ImageCollection(self.l5cfm.merge(self.l7cfm).merge(self.l8cfm)).sort('system:time_start')
-        self.mergedqam = ee.ImageCollection(self.l5qam.merge(self.l7qam)).sort('system:time_start')
-
-    def get_img_coll(self):
-        return self.mergedqam
-
-    def init_coll(self, name):
-        return ee.ImageCollection(name).filterBounds(self.filterpoly).filterDate(self.s, self.e).map(self.rename_l457)
-
-    def init_coll8(self, name):
-        return ee.ImageCollection(name).filterBounds(self.filterpoly).filterDate(self.s, self.e).map(self.rename_l8)
-
-    @staticmethod
-    def fixwrs(srimg):
-        return srimg.set({'WRS_PATH': srimg.get('wrs_path'), 'WRS_ROW': srimg.get('wrs_row')})
-
-    @staticmethod
-    def rename_l8(l8img):
-        """
-        Bands of Landsat 8 are:
-        B1: Coastal aerosol (0.43 - 0.45 um) (signed int16)
-        B2: Blue (0.45 - 0.51 um) (signed int16)
-        B3: Green (0.53 - 0.59 um) (signed int16)
-        B4: Red (0.64 - 0.67 um) (signed int16)
-        B5: Near Infrared (0.85 - 0.88 um) (signed int16)
-        B6: Short-wave Infrared 1 (1.57 - 1.65 um) (signed int16)
-        B7: Short-wave infrared 2 (2.11 - 2.29 um) (signed int16)
-        cfmask - cloud mask (unsigned int8)
-        cfmask_conf - cloud mask confidence (unsigned int8)
-        :param l8img:
-        :return:
-        """
-        return l8img.rename(['AEROS', 'BLUE', 'GREEN', 'RED', 'NIR', 'SWIR1', 'SWIR2', 'cfmask', 'cfmask_conf'])
-
-    @staticmethod
-    def rename_l457(limg):
-        """
-        B1 - blue	0.45 - 0.52
-        B1 - green	0.52 - 0.60
-        B3 - red	0.63 - 0.69
-        B4 - Near Infrared	0.77 - 0.90
-        B5 - Short-wave Infrared	1.55 - 1.75
-        B7 - Short-wave Infrared	2.09 - 2.35
-        cfmask - cloud mask
-        cfmask_conf - cloud mask confidence
-        adjacent_cloud_qa - Binary QA mask (0/255)
-        cloud_qa - Binary QA mask (0/255)
-        cloud_shadow_qa - Binary QA mask (0/255)
-        ddv_qa, fill_qa - Binary QA mask (0/255)
-        land_water_qa - Binary QA mask (0/255)
-        snow_qa - Binary QA mask (0/255)
-        atmos_opacity - Atmospheric Opacity
-        """
-        return limg.rename(['BLUE', 'GREEN', 'RED', 'NIR', 'SWIR1', 'SWIR2', 'cfmask', 'cfmask_conf',
-                            'adjacent_cloud_qa', 'cloud_qa', 'cloud_shadow_qa', 'ddv_qa', 'fill_qa',
-                            'land_water_qa', 'snow_qa', 'atmos_opacity'])
-
-    @staticmethod
-    def mask_qa(srimg):
-        """
-        QA bands are only available for Landsat 4-7:
-        adjacent_cloud_qa,
-        cloud_qa,
-        cloud_shadow_qa,
-        ddv_qa, (dense dark vegetation)
-        fill_qa,
-        land_water_qa,
-        snow_qa
-        255 if the corresponding condition was detected
-        0 otherwise
-        :param srimg: SR Landsat image
-        :return: SR Landsat image masked for clear pixels only
-        """
-        qabands = ['cloud_qa', 'cloud_shadow_qa', 'adjacent_cloud_qa', 'land_water_qa', 'snow_qa']
-        badqamask = srimg.select(qabands).reduce(ee.Reducer.anyNonZero())
-        totqamask = ee.Image(1).mask(srimg.select('BLUE').mask()).where(badqamask, 0)
-        return srimg.updateMask(totqamask)
-
-    @staticmethod
-    def cfmask(srimg):
-        """
-        cfmask: cloud mask.
-        0=clear
-        1=water
-        2=shadow
-        3=snow
-        4=cloud
-        cfmask_conf: cloud mask confidence
-        0=none
-        1=cloud confidence >= 12.5
-        2=cloud confidence > 12.5% and <= 22.5%
-        3=cloud confidence > 22.5
-        :param srimg:
-        :return:
-        """
-        cfmask = srimg.select('cfmask')
-        clearpx = cfmask.eq(0)
-        return srimg.updateMask(clearpx)
 
 
 class LandsatSR(MultiImageDatasource):
@@ -583,25 +468,6 @@ class LandsatSR(MultiImageDatasource):
         return scene.updateMask(clearmask)
 
 
-class LandsatJoined(MultiImageDatasource):
-    def build_img_coll(self):
-        self.toa = LandsatTOAPRE(self.filterpoly, self.start_date, self.end_date)
-        self.sr = LandsatSRPRE(self.filterpoly, self.start_date, self.end_date)
-        # TODO: does doing three joins separately cost more than a single all-inclusive join?
-        self.l8 = joincoll(self.sr.l8sel, self.toa.l8sel).map(self._cast_img2float)
-        self.l7 = joincoll(self.sr.l7sel, self.toa.l7sel).map(self._cast_img2float)
-        self.l5 = joincoll(self.sr.l5sel, self.toa.l5sel).map(self._cast_img2float)
-        self.merged = ee.ImageCollection(self.l5.merge(self.l7).merge(self.l8))
-        self.merged = self.merged.sort('system:time_start')
-
-    def get_img_coll(self):
-        return self.merged
-
-    @staticmethod
-    def _cast_img2float(img):
-        return img.toFloat()
-
-
 class MODISrefl(GlobalImageDatasource):
     """
     Global:  filterpoly is ignored.
@@ -643,86 +509,3 @@ class MODISsr(MODISrefl):
                           'sur_refl_b04', 'sur_refl_b06', 'sur_refl_b07']
         self.collname = "MODIS/MOD09A1"
         self.coll = ee.ImageCollection(self.collname).filterDate(self.start_date, self.end_date).map(self.rename)
-
-
-class Sentinel2TOA(MultiImageDatasource):
-
-    def init_coll(self, name):
-        return ee.ImageCollection(name).filterBounds(self.filterpoly).filterDate(self.s, self.e).map(self.rename)
-
-    def build_img_coll(self, name=None):
-        self.s = self.start_date
-        self.e = self.end_date
-        self.name = name
-
-        if name is None:
-            self.coll = None
-        else:
-            self.coll = self.init_coll(name)
-
-    def get_img_coll(self):
-        if self.coll is None:
-            raise DatasourceError("Missing collection, make sure name is not None.  Name was {}".format(self.name))
-        return self.coll
-
-    @staticmethod
-    def qa_cloudmask(img):
-
-        # Opaque and cirrus cloud masks cause bits 10 and 11 in QA60 to be set,so values less than 1024 are cloud-free
-        mask = ee.Image(0).where(img.select('QA60').gte(1024), 1).Not()
-
-        return img.updateMask(mask)
-
-    @staticmethod
-    def _rescale(img, exp, thresholds):
-
-        """
-        A helper to apply an expression and linearly rescale the output.
-        """
-
-        return img.expression(exp, img=img).subtract(thresholds[0]).divide(thresholds[1] - thresholds[0])
-
-    def add_cloud_score(self, img):
-
-        img = ee.Image(img).divide(1000)
-
-        score = ee.Image(1.0)
-
-        score = score.min(self._rescale(img, 'img.cirrus', [0, 0.1]))
-
-        score = score.min(self._rescale(img, 'img.cb', [0.5, 0.8]))
-
-        score = score.min(self._rescale(img.normalizedDifference(['GREEN', 'SWIR1']), 'img', [0.8, 0.6]))
-
-        # Invert the cloudscore so 1 is least cloudy, and rename the band.
-        return img.addBands(ee.Image(1).subtract(score).select([0], ['cloudscore']))
-
-    @staticmethod
-    def rename(s2img):
-
-        """
-        Band	Use	Wavelength	Resolution
-        B1	Aerosols	443nm	60m
-        B2	Blue	490nm	10m
-        B3	Green	560nm	10m
-        B4	Red	665nm	10m
-        B5	Red Edge 1	705nm	20m
-        B6	Red Edge 2	740nm	20m
-        B7	Red Edge 3	783nm	20m
-        B8	NIR	842nm	10m
-        B8a	Red Edge 4	865nm	20m
-        B9	Water vapor	940nm	60m
-        B10	Cirrus	1375nm	60m
-        B11	SWIR 1	1610nm	20m
-        B12	SWIR 2	2190nm	20m
-        QA10
-        QA20
-        QA60
-        """
-
-        newnames = ['AEROS', 'BLUE', 'GREEN', 'RED', 'RDED1', 'RDED2', 'RDED3',
-                    'NIR', 'RDED4', 'VAPOR', 'CIRRU', 'SWIR1', 'SWIR2', 'QA10',
-                    'QA20', 'QA60']
-
-        return s2img.rename(newnames)
-
