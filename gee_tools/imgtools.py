@@ -61,7 +61,6 @@ def rename_bands(img, suffix):
 
 
 def addDOY(image):
-
     date = image.date()
     doy = date.getRelative('day', 'year').add(1)
     month = date.getRelative('month', 'year')
