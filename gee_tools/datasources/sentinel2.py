@@ -11,23 +11,48 @@ class Sentinel2TOA(MultiImageDatasource):
 
         :return:
         """
+
         self.name = "COPERNICUS/S2"
         self.coll = ee.ImageCollection(self.name).filterBounds(self.filterpoly)
         self.coll = self.coll.filterDate(self.start_date, self.end_date).map(self.rename)
 
-    def get_img_coll(self, addVIs, addRDVIs, addCloudMasks):
+        self.opticalbands = ee.List([
+            'AEROS',
+            'BLUE',
+            'GREEN',
+            'RED',
+            'RDED1',
+            'RDED2',
+            'RDED3',
+            'NIR',
+            'RDED4',
+            'VAPOR',
+            'CIRRU',
+            'SWIR1',
+            'SWIR2'])
+
+    def get_img_coll(self, addVIs, addCloudMasks):
+        """
+        TODO: I may need to reconsider this method. Two main issues:
+        TODO:   1) FSE tree works with unscaled data
+        TODO:   2) VIs should always be computed in reflectance units (i.e. after scaling).
+
+        :param addVIs:
+        :param addRDVIs:
+        :param addCloudMasks:
+        :return:
+        """
 
         s2 = self.coll
 
-        # .map(tools.addDOY); # NOTE: DOY is necesseary if RF-based cloud mask has to be applied.
-
         if addCloudMasks:
+            # FSE tree uses scaled values, not reflectance.
             s2 = s2.map(self.addAllQAMaps)
 
         if addVIs:
+            # VIs have to be computed in reflectance units.
+            s2 = s2.map(self.refl_scale)
             s2 = s2.map(self.addSWVIs)
-
-        if addRDVIs:
             s2 = s2.map(self.addRededgeExtras)
 
         return s2
@@ -182,6 +207,40 @@ class Sentinel2TOA(MultiImageDatasource):
                     'QA20', 'QA60']
 
         return s2img.rename(newnames)
+
+    @staticmethod
+    def refl_scale(img):
+        """
+        Scale bands back to original reflectance units.
+        TODO: update this method to use generalized scaler in imgtools.
+        :param img:
+        :return:
+        """
+
+        optical10  = ['BLUE',  'GREEN', 'RED', 'NIR']
+
+        optical20  = ['RDED1', 'RDED2', 'RDED3',
+                          'RDED4', 'SWIR1', 'SWIR2']
+
+        optical60  = ['AEROS', 'VAPOR', 'CIRRU']
+
+        scaler = ee.Image.constant(0.0001)
+
+        scaler10 = scaler.updateMask(img.select(optical10[0]))
+        scoptical10 = img.select(optical10).multiply(scaler10)
+
+        scaler20 = scaler.updateMask(img.select(optical20[0]))
+        scoptical20 = img.select(optical20).multiply(scaler20)
+
+        scaler60 = scaler.updateMask(img.select(optical60[0]))
+        scoptical60 = img.select(optical60).multiply(scaler60)
+
+        # Re-add and overwrite.
+        img = img.addBands(scoptical10, optical10, True)
+        img = img.addBands(scoptical20, optical20, True)
+        img = img.addBands(scoptical60, optical60, True)
+
+        return img
 
     @staticmethod
     def addREIP(image):

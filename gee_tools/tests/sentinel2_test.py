@@ -32,37 +32,23 @@ print '\n'
 
 
 """
-Test standard SW VIs.
+Test VIs.
 """
 # Get collection with extra bands.
-s2extra = s2base.get_img_coll(addVIs=True, addRDVIs=False, addCloudMasks=False)
+s2extra = s2base.get_img_coll(addVIs=True, addCloudMasks=False)
 
 testimg_s2extra = ee.Image(s2extra.first())
 
-print "Test image with SW VIs has the following bands: "
+print "Test image with VIs has the following bands: "
 print testimg_s2extra.bandNames().getInfo()
 print '\n'
-
-
-"""
-Test Red-edge VIs.
-"""
-# Get collection with extra bands.
-s2re = s2base.get_img_coll(addVIs=True, addRDVIs=True, addCloudMasks=False)
-
-testimg_s2re = ee.Image(s2re.first())
-
-print "Test image with SW and Red-edge VIs has the following bands: "
-print testimg_s2re.bandNames().getInfo()
-print '\n'
-
 
 
 """
 Test Cloud masks.
 """
 # Get collection with extra bands.
-s2qa = s2base.get_img_coll(addVIs=True, addRDVIs=True, addCloudMasks=True)
+s2qa = s2base.get_img_coll(addVIs=True, addCloudMasks=True)
 
 testimg_s2qa = ee.Image(s2qa.first())
 
