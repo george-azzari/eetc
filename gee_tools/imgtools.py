@@ -76,7 +76,6 @@ def addDOY(image):
 
 
 def appendBand(current, previous):
-
     """
     Append it to the result (Note: only return current item on first element/iteration)
     :param current:
