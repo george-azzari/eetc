@@ -1,5 +1,8 @@
-from gee_tools.datasources import sentinel1
+import unittest
+
 import ee
+
+from gee_tools.datasources import sentinel1
 
 
 ee.Initialize()
