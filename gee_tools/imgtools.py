@@ -53,7 +53,6 @@ def _rename_band(val, suffix):
 
 
 def rename_bands(img, suffix):
-
     bandnames = img.bandNames()
     newnames = bandnames.map(lambda x: _rename_band(x, suffix))
 
