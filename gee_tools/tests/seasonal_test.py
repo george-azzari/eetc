@@ -1,4 +1,4 @@
-from gee_tools.seasonal import getS1Plus, getS2Plus
+from gee_tools.seasonal import getS1Plus, getS2Plus, sentinel_combined_medians
 import ee
 
 
@@ -28,3 +28,9 @@ s2seasimg = ee.Image(s2seascoll.first())
 print "Test image for S2 has the following bands: "
 print s2seasimg.bandNames().getInfo()
 print '\n'
+
+
+glcmvars = [ 'contrast', 'corr', 'var', 'savg','prom']
+seasmed = sentinel_combined_medians(roi, 2018, False, False, True, True, glcmvars)
+print "Test combined median composite has the following bands:"
+print seasmed.bandNames().getInfo()
