@@ -31,7 +31,18 @@ class Sentinel2TOA(MultiImageDatasource):
             'SWIR1',
             'SWIR2'])
 
-    def get_img_coll(self, addVIs, addCloudMasks):
+    def get_img_coll(self, addVIs=True, addCloudMasks=True):
+        """
+        Args:
+            addVIs (bool): If True do two things.
+                Use self.refl_scale to convert bands to reflectance units.
+                Add the following bands.  'NBR1', 'NBR2', 'STI', 'NDTI', 'CRC', 'REIP', 'ChloropIndx', 'MTCI', 'WDRVI', 'NDVI'
+                Defaults to True.
+            addCloudMasks (bool):  If True, use addAllQAMaps to add cloud masks.
+                Defaults to True.
+                
+        Returns:
+            (ee.ImageCollection):  The sentinel 2 image collection modified by arguments.
         """
         TODO: I may need to reconsider this method. Two main issues:
         TODO:   1) FSE tree works with unscaled data
