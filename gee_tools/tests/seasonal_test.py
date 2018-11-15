@@ -1,4 +1,4 @@
-from gee_tools.seasonal import getS1Plus
+from gee_tools.seasonal import getS1Plus, getS2Plus
 import ee
 
 
@@ -16,6 +16,15 @@ s1seascoll = getS1Plus(roi, 2018, True, True)
 
 s1seasimg = ee.Image(s1seascoll.first())
 
-print "Test image has the following bands: "
+print "Test image for S1 has the following bands: "
 print s1seasimg.bandNames().getInfo()
+print '\n'
+
+
+s2seascoll = getS2Plus(roi, 2018, True)
+
+s2seasimg = ee.Image(s2seascoll.first())
+
+print "Test image for S2 has the following bands: "
+print s2seasimg.bandNames().getInfo()
 print '\n'
