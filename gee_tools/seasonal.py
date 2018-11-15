@@ -2,6 +2,7 @@ import ee
 import arraycomposites
 import imgtools
 from gee_tools.datasources.sentinel1 import Sentinel1
+from gee_tools.datasources.sentinel2 import Sentinel2TOA
 
 
 class Collection(object):
@@ -166,12 +167,9 @@ class WRSGroups(object):
 ------------------------------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------------------------------
     Quick implementations of corresponding JS tools. Need to re-assess and implement better philosophy in this repo.
+    Port from users/georgeazzari/EEtools:seasonal.js
 ------------------------------------------------------------------------------------------------------------------------
-"""
-
-"""
 ------------------------------------------------------------------------------------------------------------------------
-Port from users/georgeazzari/EEtools:seasonal.js
 """
 
 
@@ -193,50 +191,17 @@ def getS1Plus(poly, year, correctlia, addspeckle):
     return s1
 
 
+def getS2Plus(poly, year, addvis):
 
+    startdate = ee.Date.fromYMD(year - 1, 10, 1)
+    enddate = ee.Date.fromYMD(year, 10, 1)
 
+    s2obj = Sentinel2TOA(poly, startdate, enddate)
 
-# """/*------------------------------------------------------------------------------------------------------------------*/
-# /*-------------------------------------------- Get S2 collection ---------------------------------------------------*/"""
-#
+    s2plus = s2obj.get_img_coll(addVIs=addvis, addCloudMasks=True)
+    s2plus = s2plus.map(lambda img: img.updateMask(img.select('QA_FSEV1').eq(1)))
 
-# s2data = require('users/georgeazzari/EEtools:s2.data.js')
-# fsetrees = require('users/georgeazzari/EEtools:s2.cloudtree.fse.africa.js')
-
-# def getS2Plus(region, year, addvis):
-#     startdate = ee.Date.fromYMD(year - 1, 10, 1)
-#     enddate = ee.Date.fromYMD(year, 10, 1)
-#
-#     s2plus = s2data.getS2(startdate, enddate, region, false, false, false, true).map(
-#
-#         function(img){
-#
-#             # Masking with first version of our decision tree
-#             fsemask = fsetrees.decisionTreeclass(img).select([0],['QA_FSEV1']).eq(1)
-#             img  = img.updateMask(fsemask).select(s2data.opticalbands)
-#
-#             # Rescaling to 0-1
-#             img = s2data.rescaleS2(img)
-#
-#             return img
-#
-#         })
-#
-#     if(addvis===true){
-#       # Adding VIs
-#
-#       s2plus = s2plus.map(
-#         function(img){
-#
-#           img = s2data.addSWVIs(img)
-#           img = s2data.addRededgeExtras(img)
-#
-#           return img
-#
-#       })
-#     }
-#
-#     return s2plus
+    return s2plus
 #
 #
 # """/*---------------------------------------------------------------------------------------------------------------*/
