@@ -44,15 +44,9 @@ class Sentinel2TOA(MultiImageDatasource):
         Returns:
             (ee.ImageCollection):  The sentinel 2 image collection modified by arguments.
         """
-        TODO: I may need to reconsider this method. Two main issues:
-        TODO:   1) FSE tree works with unscaled data
-        TODO:   2) VIs should always be computed in reflectance units (i.e. after scaling).
-
-        :param addVIs:
-        :param addRDVIs:
-        :param addCloudMasks:
-        :return:
-        """
+        # TODO: I may need to reconsider this method. Two main issues:
+        # TODO:   1) FSE tree works with unscaled data
+        # TODO:   2) VIs should always be computed in reflectance units (i.e. after scaling).
 
         s2 = self.coll
 
