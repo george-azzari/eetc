@@ -496,7 +496,7 @@ class MODISnbar(MODISrefl):
     def build_img_coll(self):
         self.orignames = ['Nadir_Reflectance_Band1', 'Nadir_Reflectance_Band2', 'Nadir_Reflectance_Band3',
                           'Nadir_Reflectance_Band4', 'Nadir_Reflectance_Band6', 'Nadir_Reflectance_Band7']
-        self.collname = "MODIS/MCD43A4"
+        self.collname = "MODIS/006/MCD43A4"
         self.coll = ee.ImageCollection(self.collname).filterDate(self.start_date, self.end_date).map(self.rename)
 
 
@@ -507,5 +507,5 @@ class MODISsr(MODISrefl):
     def build_img_coll(self):
         self.orignames = ['sur_refl_b01', 'sur_refl_b02', 'sur_refl_b03',
                           'sur_refl_b04', 'sur_refl_b06', 'sur_refl_b07']
-        self.collname = "MODIS/MOD09A1"
+        self.collname = "MODIS/006/MOD09A1"
         self.coll = ee.ImageCollection(self.collname).filterDate(self.start_date, self.end_date).map(self.rename)

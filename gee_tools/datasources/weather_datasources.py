@@ -11,7 +11,7 @@ import ee
 class Daymet:
     def __init__(self):
         # NOTE: no filterBounds needed; DAYMET is composed by whole-CONUS images
-        self.wholecoll = ee.ImageCollection('NASA/ORNL/DAYMET')
+        self.wholecoll = ee.ImageCollection('NASA/ORNL/DAYMET_V3')
 
     @staticmethod
     def addsradvp(img):
