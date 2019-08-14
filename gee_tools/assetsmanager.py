@@ -13,6 +13,9 @@ export GOOGLE_APPLICATION_CREDENTIALS="/home/user/Downloads/[FILE_NAME].json"
 
 """
 
+def asset_exists(asset_id):
+    return ee.data.getInfo(asset_id) != None
+
 
 def upload_asset_core(gsfilepath, eefolderpath, nodata=-32768):
     """
