@@ -2,8 +2,10 @@
 # Author: Anthony Perez
 import abc
 
+
 class DatasourceError(RuntimeError):
     pass
+
 
 class ImageDatasource(object):
     """
@@ -20,11 +22,13 @@ class ImageDatasource(object):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_img_coll(self):
+    def get_img_coll(self, **kwargs):
         """Return one image collection"""
         raise NotImplementedError
 
+
 class MultiImageDatasource(ImageDatasource):
+
     """
     Defines the datasource interface constructor for image collections where images
     can be filtered by both region and time.
@@ -44,6 +48,7 @@ class MultiImageDatasource(ImageDatasource):
         self.end_date = end_date
         self.build_img_coll(**kwargs)
 
+
 class GlobalImageDatasource(ImageDatasource):
     """
     Defines the datasource interface for image collections where images are global
@@ -61,6 +66,7 @@ class GlobalImageDatasource(ImageDatasource):
         self.start_date = start_date
         self.end_date = end_date
         self.build_img_coll(**kwargs)
+
 
 class SingleImageDatasource(ImageDatasource):
     """

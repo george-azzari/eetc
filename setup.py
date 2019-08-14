@@ -11,9 +11,9 @@ REQUIRED_PACKAGES = [
 
 setup(
     name='gee_tools',
-    packages=find_packages(exclude=['*.csv', '*.ipynb']),
+    packages=find_packages(exclude=['*.csv', '*.ipynb', 'tests']),
     description='A collection of utility functions relating to Google Earth Engine.',
-    version='0.0.3',
+    version='0.0.4',
     url='https://github.com/AtlasAIPBC/gee_tools.git',
     author='George Azzari',
     author_email='',

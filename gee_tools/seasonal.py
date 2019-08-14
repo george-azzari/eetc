@@ -1,6 +1,8 @@
 import ee
 import arraycomposites
 import imgtools
+from gee_tools.datasources.sentinel1 import Sentinel1
+from gee_tools.datasources.sentinel2 import Sentinel2TOA
 
 
 class Collection(object):
@@ -159,3 +161,157 @@ class WRSGroups(object):
         filt = ee.Filter.And(ee.Filter.neq('bands_1', 0), ee.Filter.neq('bands_2', 0))
         # dropping composites without full set of bands
         return moscoll.filter(filt)
+
+
+"""
+------------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------
+    Quick implementations of corresponding JS tools. Need to re-assess and implement better philosophy in this repo.
+    Port from users/georgeazzari/EEtools:seasonal.js
+------------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------
+"""
+
+
+def getS1Plus(poly, year, correctlia, addspeckle):
+
+    startdate = ee.Date.fromYMD(year - 1, 10, 1)
+    enddate = ee.Date.fromYMD(year, 10, 1)
+
+    s1obj = Sentinel1(poly, startdate, enddate)
+
+    # NOTE: it is risky to set the orbit to None here; combining asc/desc orbits can generate a lot of noise.
+    s1 = s1obj.get_img_coll(correctlia=correctlia, addbands=True, addspeckle=addspeckle, addtexture=False, orbit=None)
+
+    # Add DOY band and convert backscatter to Natural.
+    s1 = s1.map(lambda img: imgtools.addDOY(img))
+    s1 = s1.map(lambda img: s1obj.replace_db_bands(img, ''))
+
+    # NOTE: the output of this had polarization bands in NATURAL units
+    return s1
+
+
+def getS2Plus(poly, year, addvis):
+
+    startdate = ee.Date.fromYMD(year - 1, 10, 1)
+    enddate = ee.Date.fromYMD(year, 10, 1)
+
+    s2obj = Sentinel2TOA(poly, startdate, enddate)
+
+    s2plus = s2obj.get_img_coll(addVIs=addvis, addCloudMasks=True)
+    s2plus = s2plus.map(lambda img: img.updateMask(img.select('QA_FSEV1').eq(1)))
+
+    return s2plus
+
+
+def getNewNames(bandnames, suffix):
+    newnames = bandnames.map(
+        lambda val: ee.String(val)
+        .cat(ee.String("_"))
+        .cat(ee.String(suffix))
+    )
+    return newnames
+
+
+def renameBands(img, suffix):
+    bandnames = img.bandNames()
+    newnames = getNewNames(bandnames, suffix)
+    return img.select(bandnames, newnames)
+
+
+def appendSeasonBand(current, previous):
+    # Rename the band
+    current = renameBands(current, current.get('season'))
+    # Append it to the result (Note: only return current item on first element/iteration)
+    accum = ee.Algorithms.If(ee.Algorithms.IsEqual(previous, None), current, current.addBands(ee.Image(previous)))
+    # Return the accumulation
+    return accum
+
+
+# Compute seasonal median composites for a generic collection
+def seasonMedians(imgcoll, bandnames, year, asimgcoll, addtexture, glcmvars):
+
+    f0a = ee.Filter.And(ee.Filter.inList('MONTH', [9, 10, 11]), ee.Filter.eq('YEAR', year - 1))  # Oct, Nov, Dec
+    f0b = ee.Filter.And(ee.Filter.inList('MONTH', [0]), ee.Filter.eq('YEAR', year))  # Jan
+    f1 = ee.Filter.And(ee.Filter.inList('MONTH', [1, 2, 3, 4]), ee.Filter.eq('YEAR', year))
+    f2 = ee.Filter.And(ee.Filter.inList('MONTH', [5, 6, 7, 8]), ee.Filter.eq('YEAR', year))
+
+    bim0 = imgcoll.select(bandnames).filter(ee.Filter.Or(f0a, f0b)).median()
+    bim1 = imgcoll.select(bandnames).filter(f1).median()
+    bim2 = imgcoll.select(bandnames).filter(f2).median()
+
+    if asimgcoll:
+        return ee.ImageCollection.fromImages([
+            bim0.set({
+                'nbands': bim0.bandNames().size(),
+                'season': 'S1',
+                # The DOY band is quite useless for seasonal composites and complicates things afterwords.
+                'BANDNAMES': getNewNames(bim0.bandNames().removeAll(['DOY']), 'S1'),
+                'DOYNAMES': getNewNames(['DOY'], 'S1')  # This is a dummy for glcm compositing
+            }),
+            bim1.set({
+                'nbands': bim1.bandNames().size(),
+                'season': 'S2',
+                # The DOY band is quite useless for seasonal composites and complicates things afterwords.
+                'BANDNAMES': getNewNames(bim1.bandNames().removeAll(['DOY']), 'S2'),
+                'DOYNAMES': getNewNames(['DOY'], 'S2')  # This is a dummy for glcm compositing
+            }),
+            bim2.set({
+                'nbands': bim2.bandNames().size(),
+                'season': 'S3',
+                # The DOY band is quite useless for seasonal composites and complicates things afterwords.
+                'BANDNAMES': getNewNames(bim2.bandNames().removeAll(['DOY']), 'S3'),
+                'DOYNAMES': getNewNames(['DOY'], 'S3')  # This is a dummy for glcm compositing
+            })
+        ]).filter(ee.Filter.neq('nbands', 0))
+
+    else:
+        medcomp = renameBands(bim0, 'S1').addBands(renameBands(bim1, 'S2')).addBands(renameBands(bim2, 'S3'))\
+            .set('year', year)
+
+        if addtexture:
+            scaler = ee.Dictionary.fromLists(
+                medcomp.bandNames(),
+                ee.List.repeat(1e4, medcomp.bandNames().length())
+            )
+            glcm = imgtools.getGLCMTexture(medcomp, 4, None, True, scaler)
+
+            if glcmvars is not None:
+                selbands = ee.List(glcmvars).map(lambda n: getNewNames(medcomp.bandNames(), n)).flatten()
+                glcm = glcm.select(selbands)
+
+            medcomp = medcomp.addBands(glcm)
+
+        return medcomp
+
+
+def s1Medians(region, year, correctlia, addspeckle, addtexture, glcmvars):
+
+    s1coll = getS1Plus(region, year, correctlia, addspeckle)
+    s1bnames = ee.Image(s1coll.first()).bandNames()
+    s1med = seasonMedians(s1coll, s1bnames, year, False, addtexture, glcmvars)
+
+    return s1med.set({
+        'year': year,
+        's1bands': s1bnames,
+    })
+
+
+def s2Medians(region, year, addvis, addtexture, glcmvars):
+
+    s2coll = getS2Plus(region, year, addvis)
+    s2bnames = ee.Image(s2coll.first()).bandNames()
+    s2med = seasonMedians(s2coll, s2bnames, year, False, addtexture, glcmvars)
+
+    return s2med.set({
+        'year': year,
+        's2bands': s2bnames
+    })
+
+
+def sentinel_combined_medians(region, year, addvis, correctlia, addspeckle, addtexture, glcmvars):
+
+    s1med = s1Medians(region, year, correctlia, addspeckle, addtexture, glcmvars)
+    s2med = s2Medians(region, year, addvis, addtexture, glcmvars)
+
+    return ee.Image(s2med.addBands(s1med).copyProperties(s1med))
