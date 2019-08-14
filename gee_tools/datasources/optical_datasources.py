@@ -133,7 +133,6 @@ class LandsatTOAPRE(MultiImageDatasource):
         return rgb_sharpened
 
     def _init_coll(self, name):
-
         return ee.ImageCollection(name).filterBounds(self.filterpoly).filterDate(self.s, self.e)
 
     @staticmethod

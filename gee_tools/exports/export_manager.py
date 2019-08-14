@@ -203,9 +203,16 @@ class ExportManager(object):
 
             output_bands.extend(input_config['bands'])
 
+        if 'LAT' in output_bands or 'LON' in output_bands:
+            raise ValueError(
+                'Output bands contained the key LAT or LON.  '
+                'This is not allowed, LAT and LON will be added automatically.'
+            )
+
+        output_bands += [u'LAT', u'LON']
         return output_bands
 
-    
+
     def _get_image_spec_helper(self, image_spec, tags=None):
         datasources = self._get_datasources_by_tag(tags=tags)
         image_spec = ExportManager._convert_to_image_spec(image_spec)
@@ -267,8 +274,10 @@ class ExportManager(object):
             export_radius (int): The outputsize in pixels (final output is an (2 * output_size + 1) by (2 * output_size + 1) square)
 
         Returns:
-            (ee.FeatuerCollection): A new feature collection with an output_size by output_size tile added to each row.
+            (Tuple[ee.FeatuerCollection, List[str]]): 
+            First element: A new feature collection with an output_size by output_size tile added to each row.
             The tile's bands are stored in separate columns.
+            Second element:  The list of output bands.
         """
         image_spec, output_bands = self._get_image_spec_helper(image_spec, tags)
         fc = add_imagery(fc, image_spec, output_size=export_radius)
