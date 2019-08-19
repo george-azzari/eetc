@@ -9,7 +9,7 @@ import itertools
 import ee
 
 from gee_tools.datasources.optical_datasources import LandsatSR, MODISnbar
-from gee_tools.datasources.pop_and_urban_datasources import GHSLPop
+from gee_tools.datasources.pop_and_urban_datasources import GHSLPop, CityAccessibility
 from gee_tools.exports.export_manager import ExportManager
 from gee_tools.exports.constants import EPSG3857
 
@@ -39,7 +39,7 @@ class ExportManagerTestCase(unittest.TestCase):
 
     def test_base_collection(self):
         """
-        Test base collection (raw S1 assets).
+        Test basic configuration.
         """
         config = {
             "landsat": {
@@ -126,6 +126,110 @@ class ExportManagerTestCase(unittest.TestCase):
         export_manager = ExportManager(config_with_lat)
         with self.assertRaises(ValueError):
             export_manager.get_scene(image_spec)
+
+    def test_empty_collection(self):
+        """
+        Test what happens when a collection is filtered to the empty collection.
+
+        Empty collection are omitted.
+        """
+        config = {
+            'modis': {
+                "class": MODISnbar,
+                "args": {},
+                "composite_fn": modis_composite,
+                "bands": OUT_MODIS_BANDS,
+            },
+            'accessibility': {
+                "class": CityAccessibility,
+                "args": {},
+                "composite_fn": None,
+                "bands": ['ACCESSIBILITY'],
+            }
+        }
+
+        image_spec = {
+            'start_date': '1950-01-01',
+            'end_date': '1950-12-31',
+            'filterpoly': ee.Geometry.Point(38.76, 9.01).buffer(3000).bounds(),
+            'projection': EPSG3857,  # CRS
+            'scale': 30,
+        }
+
+        export_manager = ExportManager(config)
+        scene, scene_reported_output_bands = export_manager.get_scene(image_spec)
+
+        test_fc = ee.FeatureCollection([
+            ee.Feature(ee.Geometry.Point(38.76, 9.01), {})
+        ])
+        # Sample 255 by 255 tiles around the given points.
+        sampled_fc, samples_reported_output_bands = export_manager.sample_tiles(test_fc, image_spec, 127)
+
+
+        expected_bands = ['ACCESSIBILITY', 'LAT', 'LON']
+        actual_bands = scene.bandNames().getInfo()
+
+        self.assertEqual(sorted(expected_bands), sorted(actual_bands))
+        self.assertEqual(
+            sorted(samples_reported_output_bands),
+            sorted(OUT_MODIS_BANDS + expected_bands)
+        )
+
+        sampled_fc = sampled_fc.getInfo()
+        feat = sampled_fc['features'][0]
+        props = feat['properties']
+
+        for band in OUT_MODIS_BANDS:
+            self.assertFalse(band in props)
+
+    def test_empty_collection2(self):
+        """
+        Test what happens when a collection is filtered to the empty collection.
+
+        Empty collection are omitted.
+        """
+        config = {
+            'modis': {
+                "class": MODISnbar,
+                "args": {},
+                "composite_fn": modis_composite,
+                "bands": OUT_MODIS_BANDS,
+            },
+        }
+
+        image_spec = {
+            'start_date': '1950-01-01',
+            'end_date': '1950-12-31',
+            'filterpoly': ee.Geometry.Point(38.76, 9.01).buffer(3000).bounds(),
+            'projection': EPSG3857,  # CRS
+            'scale': 30,
+        }
+
+        export_manager = ExportManager(config)
+        scene, scene_reported_output_bands = export_manager.get_scene(image_spec)
+
+        test_fc = ee.FeatureCollection([
+            ee.Feature(ee.Geometry.Point(38.76, 9.01), {})
+        ])
+        # Sample 255 by 255 tiles around the given points.
+        sampled_fc, samples_reported_output_bands = export_manager.sample_tiles(test_fc, image_spec, 127)
+
+
+        expected_bands = []
+        actual_bands = scene.bandNames().getInfo()
+
+        self.assertEqual(sorted(expected_bands), sorted(actual_bands))
+        self.assertEqual(
+            sorted(samples_reported_output_bands),
+            sorted(OUT_MODIS_BANDS + ['LAT', 'LON'])
+        )
+
+        sampled_fc = sampled_fc.getInfo()
+        feat = sampled_fc['features'][0]
+        props = feat['properties']
+
+        for band in OUT_MODIS_BANDS:
+            self.assertFalse(band in props)
 
 
 if __name__ == '__main__':

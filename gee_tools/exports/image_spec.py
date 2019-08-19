@@ -167,7 +167,12 @@ class ImageSpec(object):
         for bands in processed_imagery:
             scene = scene.addBands(bands)
         if add_latlon:
-            scene = imgtools.add_latlon(scene)
+            scene = ee.Algorithms.If(
+                scene.bandNames().size().eq(0),
+                scene,
+                imgtools.add_latlon(scene)
+            )
+            scene = ee.Image(scene)
         return scene
 
 
@@ -187,15 +192,23 @@ def add_imagery_scene(ft, scene, scale, projection, output_size):
 
     :returns: a new feature collection with an output_size by output_size tile added to each row.
     The tile's bands are stored in separate columns.
-
-    Note: There seems to be an issue in general with exporting non-numeric data.
     """
     if projection != constants.EPSG3857:
         # gee_tools.ai_io.ee_tf_exports.get_array_patches currently only samples with projection EPSG3857
         raise NotImplementedError("Projection must be EPSG:3857")
-    return tfexp.get_array_patches(scene, scale, output_size, ft,
-                                   False, False, None, None,
-                                   None, None, None)
+
+    ft = ee.Algorithms.If(
+        scene.bandNames().size().eq(0),
+        ft,
+        tfexp.get_array_patches(
+            scene, scale, output_size, ft,
+            False, False, None, None,
+            None, None, None
+        )
+    )
+    ft = ee.FeatureCollection(ft)
+
+    return ft
 
 
 def add_imagery(ft, image_spec, output_size):
@@ -212,23 +225,6 @@ def add_imagery(ft, image_spec, output_size):
 
     :returns: a new feature collection with an output_size by output_size tile added to each row.
     The tile's bands are stored in separate columns.
-
-    Note: There seems to be an issue in general with exporting non-numeric data.
     """
     scene = image_spec.get_scene()
     return add_imagery_scene(ft, scene, image_spec.scale, image_spec.projection, output_size)
-
-
-def full_export(ft, image_spec, output_size, mybucket, prefix, fname):
-    """
-    add_imagery followed by exporting
-    See add_imagery doc string and gee_tools.ai_io.ee_tf_exports.tfexports docstring
-
-    Note: Exporting to tfrecords drops non-numeric data.
-    """
-    output_dataset = add_imagery(ft, image_spec, output_size)
-    selectors = ee.Feature(output_dataset.first()).propertyNames().getInfo()
-    task = tfexp.tfexporter(output_dataset, tocloud=True, selectors=selectors,
-                            dropselectors=None, mybucket=mybucket, prefix=prefix,
-                            fname=fname)
-    return output_dataset, task

@@ -129,7 +129,7 @@ class ExportManager(object):
     @staticmethod
     def _populate_cache(image_spec, datasources):
         scheduler = TaskScheduler()
-        export_region = image_spec.region.bounds().getInfo()['coordinates']
+        export_region = None
 
         image_spec_kwargs = {
             'start_date': image_spec.start_date,
@@ -164,6 +164,9 @@ class ExportManager(object):
 
             scene = image_spec.get_scene(add_latlon=False)
             scene = scene.clip(image_spec_kwargs['filterpoly'])
+
+            if export_region is None:
+                export_region = image_spec.region.bounds().getInfo()['coordinates']
 
             task = ee.batch.Export.image.toAsset(**{
                 'image': scene,
@@ -246,6 +249,10 @@ class ExportManager(object):
                 First element: The image represented by combining datasources according to
                 the specifications in the image_spec argument.
                 Second element:  The list of output bands.
+
+            If a collection in the constructor argument is filtered in such a way that it becomes the empty
+            collection, it's bands will be omitted from the output but will still be included in the second
+            return element.
         """
         image_spec, output_bands = self._get_image_spec_helper(image_spec, tags)
         return image_spec.get_scene(), output_bands
@@ -278,6 +285,10 @@ class ExportManager(object):
             First element: A new feature collection with an output_size by output_size tile added to each row.
             The tile's bands are stored in separate columns.
             Second element:  The list of output bands.
+
+            If a collection in the constructor argument is filtered in such a way that it becomes the empty
+            collection, it's bands will be omitted from the output but will still be included in the second
+            return element.
         """
         image_spec, output_bands = self._get_image_spec_helper(image_spec, tags)
         fc = add_imagery(fc, image_spec, output_size=export_radius)
