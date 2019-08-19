@@ -231,6 +231,133 @@ class ExportManagerTestCase(unittest.TestCase):
         for band in OUT_MODIS_BANDS:
             self.assertFalse(band in props)
 
+    def test_sample_tiles_unstacked(self):
+        """
+        Test basic configuration.
+        """
+        config = {
+            "landsat": {
+                "class": LandsatSR,
+                "args": {},
+                "composite_fn": lx_composite,
+                "bands": OUT_LX_BANDS,
+            },
+            'modis': {
+                "class": MODISnbar,
+                "args": {},
+                "composite_fn": modis_composite,
+                "bands": OUT_MODIS_BANDS,
+            },
+            'ghsl_pop': {
+                "class": GHSLPop,
+                "args": { 'use_closest_image': True },
+                "composite_fn": lambda img_coll: img_coll.mean(),
+                "bands": ['POPULATION'],
+            },
+        }
+
+        image_spec = {
+            'start_date': '2011-01-01',
+            'end_date': '2011-12-31',
+            'filterpoly': ee.Geometry.Point(38.76, 9.01).buffer(3000).bounds(),
+            'projection': EPSG3857,  # CRS
+            'scale': 30,
+        }
+
+        export_manager = ExportManager(config)
+        scene, scene_reported_output_bands = export_manager.get_scene(image_spec)
+
+        test_fc = ee.FeatureCollection([
+            ee.Feature(ee.Geometry.Point(38.76, 9.01), {})
+        ])
+        # Sample 255 by 255 tiles around the given points.
+        sampled_fc, samples_reported_output_bands = export_manager.sample_tiles_unstacked(test_fc, image_spec, 127)
+
+
+        expected_bands = list(itertools.chain(
+            *[c['bands'] for c in config.values()]
+        )) + [u'LAT', u'LON']
+        actual_bands = scene.bandNames().getInfo()
+
+        self.assertEqual(sorted(expected_bands), sorted(actual_bands))
+        self.assertEqual(sorted(expected_bands), sorted(scene_reported_output_bands))
+        self.assertEqual(sorted(scene_reported_output_bands), sorted(actual_bands))
+        self.assertEqual(sorted(scene_reported_output_bands), sorted(samples_reported_output_bands))
+
+        sampled_fc = sampled_fc.getInfo()
+        feat = sampled_fc['features'][0]
+        props = feat['properties']
+
+        for band in expected_bands:
+            self.assertTrue(band in props)
+            band_value = props[band]
+
+            self.assertEqual(len(band_value), 255)
+            self.assertEqual(len(band_value[0]), 255)
+
+        # Test included LAT band
+
+        config_with_lat = {
+            "landsat": {
+                "class": LandsatSR,
+                "args": {},
+                "composite_fn": lx_composite,
+                "bands": OUT_LX_BANDS,
+            },
+            'modis': {
+                "class": MODISnbar,
+                "args": {},
+                "composite_fn": modis_composite,
+                "bands": OUT_MODIS_BANDS,
+            },
+            'ghsl_pop': {
+                "class": GHSLPop,
+                "args": { 'use_closest_image': True },
+                "composite_fn": lambda img_coll: img_coll.mean().addBands(
+                    ee.Image(0).select([0], ['LAT'])
+                ),
+                "bands": ['POPULATION', 'LAT'],
+            },
+        }
+
+        export_manager = ExportManager(config_with_lat)
+        with self.assertRaises(ValueError):
+            export_manager.sample_tiles_unstacked(test_fc, image_spec, 127)
+
+        # Test empty collection
+        
+        config = {
+            'modis': {
+                "class": MODISnbar,
+                "args": {},
+                "composite_fn": modis_composite,
+                "bands": OUT_MODIS_BANDS,
+            },
+        }
+
+        image_spec = {
+            'start_date': '1950-01-01',
+            'end_date': '1950-12-31',
+            'filterpoly': ee.Geometry.Point(38.76, 9.01).buffer(3000).bounds(),
+            'projection': EPSG3857,  # CRS
+            'scale': 30,
+        }
+
+        export_manager = ExportManager(config)
+        sampled_fc, samples_reported_output_bands = export_manager.sample_tiles(test_fc, image_spec, 127)
+
+        self.assertEqual(
+            sorted(samples_reported_output_bands),
+            sorted(OUT_MODIS_BANDS + ['LAT', 'LON'])
+        )
+
+        sampled_fc = sampled_fc.getInfo()
+        feat = sampled_fc['features'][0]
+        props = feat['properties']
+
+        for band in OUT_MODIS_BANDS:
+            self.assertFalse(band in props)
+
 
 if __name__ == '__main__':
     unittest.main()

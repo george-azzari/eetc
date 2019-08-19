@@ -152,12 +152,14 @@ class ImageSpec(object):
 
             if error_check:
                 util.check_empty_bands(img)
-                
-        if error_check:
-            for img in image_spec._static_scenes:
-                util.check_empty_bands(img)
 
-        processed_imagery.extend(image_spec._static_scenes)
+        for img in image_spec._static_scenes:
+
+            img = img.reproject(image_spec.projection, None, image_spec.scale)
+            processed_imagery.append(img)
+                
+            if error_check:
+                    util.check_empty_bands(img)
 
         if len(processed_imagery) == 0:
             # This should be unreachable since len(data_source) > 0

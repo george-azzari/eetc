@@ -293,3 +293,59 @@ class ExportManager(object):
         image_spec, output_bands = self._get_image_spec_helper(image_spec, tags)
         fc = add_imagery(fc, image_spec, output_size=export_radius)
         return fc, output_bands
+
+
+    def sample_tiles_unstacked(self, fc, image_spec, export_radius, tags=None):
+        """
+        Take a featureCollection (fc) where each row has point geometry and 
+        return a featureCollection with image bands added.  Identical to sample_tiles
+        with a different implementation that may be more memory efficient.
+
+        Args:
+            fc (ee.FeatureCollection):  A feature collection, all features must have point geometries.
+            image_spect (Union[ImageSpec, Dict[str, Any]]):  Either an ImageSpec instance or a dict formated as follows:
+                {
+                    'start_date': Union[ee.Date, str],
+                    'end_date': Union[ee.Date, str],
+                    'filterpoly': ee.Geoemtry,
+                    'projection': str,  # CRS
+                    'scale': Union[int, float],
+                }
+                If an ImageSpec is passed, datasources already in the ImageSpec instance will be included in the output.
+            tags (Optional[Union[str, Enum, Collection[str, Enum]]]):  A collection of tags matching those passed in
+                the 'datasources_config' constructor argument.  Only tags contained in the tags argument
+                will be used when generating the return value.  If None, all datasources are included.
+                Defaults to None.
+            export_radius (int): The outputsize in pixels (final output is an (2 * output_size + 1) by (2 * output_size + 1) square)
+
+        Returns:
+            (Tuple[ee.FeatuerCollection, List[str]]): 
+            First element: A new feature collection with an output_size by output_size tile added to each row.
+            The tile's bands are stored in separate columns.
+            Second element:  The list of output bands.
+
+            If a collection in the constructor argument is filtered in such a way that it becomes the empty
+            collection, it's bands will be omitted from the output but will still be included in the second
+            return element.
+        """
+        datasources = self._get_datasources_by_tag(tags=tags)
+        image_spec = ExportManager._convert_to_image_spec(image_spec)
+        ExportManager._populate_cache(image_spec, datasources)
+
+        output_bands = []
+        for ds_name, ds_config in datasources.items():
+
+            ds_config = dict(ds_config)
+            ds_config['tag'] = list(ds_config['tag'])
+            small_config = {ds_name: ds_config}
+            em = ExportManager(small_config)
+            fc, small_output_bands = em.sample_tiles(fc, image_spec, export_radius)
+
+            if 'LAT' in output_bands and 'LAT' in small_output_bands:
+                small_output_bands.remove('LAT')
+            if 'LON' in output_bands and 'LON' in small_output_bands:
+                small_output_bands.remove('LON')
+
+            output_bands.extend(small_output_bands)
+
+        return fc, output_bands
