@@ -7,6 +7,71 @@ Stanford University
 
 import ee
 
+from gee_tools.datasources.interface import SingleImageDatasource, GlobalImageDatasource
+from gee_tools.datasources.util import compute_monthly_seasonal_annual_and_long_running
+
+
+class ChirpsPrecipitation(GlobalImageDatasource):
+    """
+    Bands:
+    CHIRPS_PRECIP
+    """
+
+    @staticmethod
+    def band_names():
+        return ['CHIRPS_PRECIP']
+
+    def build_img_coll(self, season_to_int_months=None):
+        chirps = ee.ImageCollection('UCSB-CHG/CHIRPS/DAILY').select(['precipitation'], ['CHIRPS_PRECIP'])
+        chirps = chirps.filterDate(self.start_date, self.end_date)
+        self.chirps = chirps.sort('system:time_start')
+
+    def get_img_coll(self):
+        return self.chirps
+
+
+class ChirpsLongRunningAverage(SingleImageDatasource):
+    """
+    Bands:
+        CHIRPS_PRECIP__long_running_average  # Over the life of the collection
+        CHIRPS_PRECIP__month_{}_long_running_average  # Over the life of the collection only on the given month
+        + CHIRPS_PRECIP__{}_long_running_average  # For each season in season_to_int_months
+    """
+
+    @staticmethod
+    def band_names(season_to_int_months=None):
+        _, bands = ChirpsLongRunningAverage._build_helper(season_to_int_months=season_to_int_months)
+        return bands
+
+    @staticmethod
+    def _build_helper(season_to_int_months=None):
+        if season_to_int_months is None:
+            season_to_int_months = {}
+
+        chirps = ee.ImageCollection('UCSB-CHG/CHIRPS/DAILY').select(['precipitation'], ['CHIRPS_PRECIP'])
+        current_year = datetime.datetime.now().year
+        long_running_years = list(range(1981, current_year + 1))
+
+        def _chirps_process_img_coll(img_coll, suffix):
+            band = 'CHIRPS_PRECIP__{}'.format(suffix)
+            img = img_coll.mean().select(['CHIRPS_PRECIP'], [band])
+            return img, [band]
+
+        img, bands = compute_monthly_seasonal_annual_and_long_running(
+            base_img_coll=chirps,
+            long_running_years=long_running_years,
+            season_to_int_months=season_to_int_months,
+            process_img_coll=_chirps_process_img_coll,
+        )
+        return img, bands
+
+    def build_img_coll(self, season_to_int_months=None):
+        img, _ = ChirpsLongRunningAverage._build_helper(season_to_int_months=season_to_int_months)
+        self.coll = ee.ImageCollection([img])
+
+    def get_img_coll(self):
+        return self.coll
+
 
 class Daymet:
     def __init__(self):
