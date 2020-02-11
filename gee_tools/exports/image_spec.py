@@ -39,7 +39,7 @@ class ImageSpec(object):
         :param scale:  The scale parameter passed to the reproject method
         :type scale: int
         """
-        
+
         self.start_date = start_date
         self.end_date = end_date
         self.region = filterpoly
@@ -61,6 +61,7 @@ class ImageSpec(object):
         self.data_sources = []
         self._static_scenes = []
         self.scene = None
+        self._scene_has_latlon = False  # Consider moving to constructor arguments.
 
     def add_datasource(self, datasource_class, composite_function, ds_kwargs=None):
         """
@@ -81,13 +82,13 @@ class ImageSpec(object):
             raise ValueError("data_sources elements should be classes, not instances: {}".format(datasource_class))
         self.data_sources.append((datasource_class, ds_kwargs, composite_function))
         self.scene = None  # Reset the scene so that it must be recomputed
-        
+
     def add_static_scene(self, scene):
         """
         Adds an ee.Image to the scene computed by this ImageSpec.
         The added image will not by filtered by date or region, but
         will be reprojected according to the constructor arguments.
-        
+
         Args:
             scene (ee.Image):  The scene to add.
         """
@@ -101,16 +102,20 @@ class ImageSpec(object):
         if len(self.data_sources) == 0:
             raise ValueError("Empty data_sources.  No data sources were specified.")
 
+        if add_latlon != self._scene_has_latlon:
+            self.scene = None
+            self._scene_has_latlon = add_latlon
+
         if self.scene is None:
             self.scene = self._get_scene(self, add_latlon=add_latlon)
         return self.scene
-   
+
     def set_specification(self, start_date=None, end_date=None,
                           filterpoly=None, scale=None,
                           projection=None):
         """
         Change the constructor arguments to this ImageSpec
-        
+
         Args:
             start_date (Optional[Union[str, ee.String, ee.Date]]): Override the default start_date.
             end_date (Optional[Union[str, ee.String, ee.Date]]): Override the default end_Date.
@@ -157,9 +162,9 @@ class ImageSpec(object):
 
             img = img.reproject(image_spec.projection, None, image_spec.scale)
             processed_imagery.append(img)
-                
+
             if error_check:
-                    util.check_empty_bands(img)
+                util.check_empty_bands(img)
 
         if len(processed_imagery) == 0:
             # This should be unreachable since len(data_source) > 0
@@ -213,20 +218,19 @@ def add_imagery_scene(ft, scene, scale, projection, output_size):
     return ft
 
 
-def add_imagery(ft, image_spec, output_size):
+def add_imagery(ft, image_spec, output_size, add_latlon=True):
     """
-    Take a featureCollection (tf) where each row has point geometry and 
+    Take a featureCollection (tf) where each row has point geometry and
     return a featureCollection with image bands added.
 
-    :param ft: ee.FeatureCollection, each row must have point geometry
-    :type ft: ee.FeatureCollection
-    :param image_spec: ImageSpec instance
-    :type image_spec: ImageSpec
-    :param output_size: The outputsize in pixels (final output is an (2 * output_size + 1) by (2 * output_size + 1) square)
-    :type output_size: int
+    Args:
+        ft (ee.FeatureCollection):  A feature collection, each feature must have point geometry.
+        image_spec (ImageSpec):  The image spec to sample imagery from.
+        output_size (int): The outputsize in pixels (final output is an (2 * output_size + 1) by (2 * output_size + 1) square)
 
-    :returns: a new feature collection with an output_size by output_size tile added to each row.
-    The tile's bands are stored in separate columns.
+    Returns:
+        (ee.FeatureCollection): A new feature collection with an output_size by output_size tile added to each row.
+        The tile's bands are stored in separate columns.
     """
-    scene = image_spec.get_scene()
+    scene = image_spec.get_scene(add_latlon=add_latlon)
     return add_imagery_scene(ft, scene, image_spec.scale, image_spec.projection, output_size)

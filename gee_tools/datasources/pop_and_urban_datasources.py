@@ -66,7 +66,7 @@ class GHSLPop(GlobalImageDatasource):
     @staticmethod
     def rename_GHLS_pop(scene):
         band_names = ['POPULATION']
-        return scene.select(range(len(band_names)), band_names)
+        return scene.select(list(range(len(band_names))), band_names)
 
 
 class GHSLUrban(GlobalImageDatasource):
@@ -107,7 +107,7 @@ class GHSLUrban(GlobalImageDatasource):
             self.urban = self.urban.map(self.separate_urban_bands)
         else:
             self.urban = self.urban.map(self.rename_GHLS_Urban)
-            
+
         self.urban = self.urban.sort('system:time_start')
 
     def get_img_coll(self):
@@ -116,7 +116,7 @@ class GHSLUrban(GlobalImageDatasource):
     @staticmethod
     def rename_GHLS_Urban(scene):
         band_names = ["SMOD"]
-        return scene.select(range(len(band_names)), band_names)
+        return scene.select(list(range(len(band_names))), band_names)
 
     @staticmethod
     def separate_urban_bands(scene):

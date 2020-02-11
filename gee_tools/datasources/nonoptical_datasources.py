@@ -86,7 +86,7 @@ class DMSPCalVIIRSJoined(NightlightDatasource):
         self.nl = ee.Algorithms.If(use_viirs, viirs, dmsp)
         self.nl = ee.Algorithms.If(use_viirs2, viirs, self.nl)
         self.nl = ee.ImageCollection(self.nl)
-    
+
     def get_img_coll(self):
         # TODO: not sure why this is helpful. All it's doing is returning a class method (George).
         return self.nl

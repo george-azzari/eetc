@@ -174,7 +174,7 @@ class GeoComponent:
     def open_gdal(self):
         if not self.gdal_dataset_flag:
             if self.check_gdalfile():
-                print "        + Reading {0} from last file...".format(self.label)
+                print("        + Reading {0} from last file...".format(self.label))
                 self.gdal_dataset = gdal.Open(self.filepath)
                 self.gdal_dataset_flag = True
                 self.geoprops.import_geogdal(self.gdal_dataset)
