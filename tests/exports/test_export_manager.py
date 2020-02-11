@@ -101,7 +101,6 @@ class ExportManagerTestCase(unittest.TestCase):
         # Sample 255 by 255 tiles around the given points.
         sampled_fc, samples_reported_output_bands = export_manager.sample_tiles(test_fc, image_spec, 127)
 
-
         expected_bands = list(itertools.chain(
             *[c['bands'] for c in config.values()]
         )) + [u'LAT', u'LON']
@@ -165,7 +164,6 @@ class ExportManagerTestCase(unittest.TestCase):
         # Sample 255 by 255 tiles around the given points.
         sampled_fc, samples_reported_output_bands = export_manager.sample_tiles(test_fc, image_spec, 127)
 
-
         expected_bands = ['ACCESSIBILITY', 'LAT', 'LON']
         actual_bands = scene.bandNames().getInfo()
 
@@ -213,7 +211,6 @@ class ExportManagerTestCase(unittest.TestCase):
         ])
         # Sample 255 by 255 tiles around the given points.
         sampled_fc, samples_reported_output_bands = export_manager.sample_tiles(test_fc, image_spec, 127)
-
 
         expected_bands = []
         actual_bands = scene.bandNames().getInfo()
@@ -273,7 +270,6 @@ class ExportManagerTestCase(unittest.TestCase):
         # Sample 255 by 255 tiles around the given points.
         sampled_fc, samples_reported_output_bands = export_manager.sample_tiles_unstacked(test_fc, image_spec, 127)
 
-
         expected_bands = list(itertools.chain(
             *[c['bands'] for c in config.values()]
         )) + [u'LAT', u'LON']
@@ -325,7 +321,7 @@ class ExportManagerTestCase(unittest.TestCase):
             export_manager.sample_tiles_unstacked(test_fc, image_spec, 127)
 
         # Test empty collection
-        
+
         config = {
             'modis': {
                 "class": MODISnbar,

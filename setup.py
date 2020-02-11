@@ -1,6 +1,7 @@
 from setuptools import setup, find_packages
 
 REQUIRED_PACKAGES = [
+    'earthengine-api >= 0.1.208',
     'gdal >= 1.10.1',
     'scipy >= 1.1.0',
     'matplotlib >= 2.2.2',
@@ -19,5 +20,4 @@ setup(
     author_email='',
     keywords=['GEE', 'Earth Engine', 'Google Earth Engine'],
     install_requires=REQUIRED_PACKAGES,
-    python_requires="~=2.7"
 )
