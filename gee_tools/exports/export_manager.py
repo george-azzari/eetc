@@ -183,7 +183,7 @@ class ExportManager(object):
         if len(scheduler) > 0:
             scheduler.run(verbose=999, error_on_fail=True)
 
-    
+
     @staticmethod
     def _populate_image_spec(image_spec, datasources):
         output_bands = []
@@ -201,7 +201,7 @@ class ExportManager(object):
                 image_spec.add_datasource(
                     datasource_class=GenericSingleImageDatasource,
                     composite_function=None,
-                    ds_kwargs={ 'image_args': cache_asset_id },
+                    ds_kwargs={'image_args': cache_asset_id},
                 )
 
             output_bands.extend(input_config['bands'])
@@ -303,23 +303,23 @@ class ExportManager(object):
 
         Args:
             fc (ee.FeatureCollection):  A feature collection, all features must have point geometries.
-            image_spect (Union[ImageSpec, Dict[str, Any]]):  Either an ImageSpec instance or a dict formated as follows:
+            image_spec (Union[ImageSpec, Dict[str, Any]]):  Either an ImageSpec instance or a dict formated as follows:
                 {
                     'start_date': Union[ee.Date, str],
                     'end_date': Union[ee.Date, str],
-                    'filterpoly': ee.Geoemtry,
+                    'filterpoly': ee.Geometry,
                     'projection': str,  # CRS
                     'scale': Union[int, float],
                 }
                 If an ImageSpec is passed, datasources already in the ImageSpec instance will be included in the output.
+            export_radius (int): The output size in pixels (final output is an (2 * output_size + 1) by (2 * output_size + 1) square)
             tags (Optional[Union[str, Enum, Collection[str, Enum]]]):  A collection of tags matching those passed in
                 the 'datasources_config' constructor argument.  Only tags contained in the tags argument
                 will be used when generating the return value.  If None, all datasources are included.
                 Defaults to None.
-            export_radius (int): The outputsize in pixels (final output is an (2 * output_size + 1) by (2 * output_size + 1) square)
 
         Returns:
-            (Tuple[ee.FeatuerCollection, List[str]]): 
+            (Tuple[ee.FeatureCollection, List[str]]):
             First element: A new feature collection with an output_size by output_size tile added to each row.
             The tile's bands are stored in separate columns.
             Second element:  The list of output bands.
@@ -333,17 +333,16 @@ class ExportManager(object):
         ExportManager._populate_cache(image_spec, datasources)
 
         output_bands = []
-        for ds_name, ds_config in datasources.items():
+        for i, (ds_name, ds_config) in enumerate(datasources.items()):
 
             ds_config = dict(ds_config)
             ds_config['tag'] = list(ds_config['tag'])
             small_config = {ds_name: ds_config}
-            em = ExportManager(small_config)
-            fc, small_output_bands = em.sample_tiles(fc, image_spec, export_radius)
+            _image_spec, small_output_bands = ExportManager(small_config)._get_image_spec_helper(image_spec, tags)
+            fc = add_imagery(fc, _image_spec, output_size=export_radius, add_latlon=(i == 0))
 
-            if 'LAT' in output_bands and 'LAT' in small_output_bands:
+            if i != 0:
                 small_output_bands.remove('LAT')
-            if 'LON' in output_bands and 'LON' in small_output_bands:
                 small_output_bands.remove('LON')
 
             output_bands.extend(small_output_bands)
