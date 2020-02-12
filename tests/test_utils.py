@@ -10,4 +10,4 @@ def compare_bands(testcase, img, expected_bands, assert_equal_kwargs=None):
     expected_bands = sorted(list(set(expected_bands)))
     img_bands = sorted(list(img_bands))
 
-    testcase.assertEqual(img_bands, expected_bands, **assert_equal_kwargs)
+    testcase.assertListEqual(img_bands, expected_bands, **assert_equal_kwargs)

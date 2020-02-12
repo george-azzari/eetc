@@ -46,6 +46,23 @@ class Sentinel1TestCase(unittest.TestCase):
 
         expected_bands = [u'VV', u'VH', u'angle', u'DIFF', u'RATIO']
         compare_bands(self, testimg_s1extra, expected_bands, {'msg': 'Sentinel 1 with extras had the wrong bands'})
+    
+    def test_extra_bands_constructor(self):
+        """
+        Test extra bands (difference and polarization).
+        """
+        # Get collection with extra bands.
+        s1base = sentinel1.Sentinel1(
+            self.roi, self.sdate, self.edate,
+            correctlia=False, addbands=True,
+            addspeckle=False, addtexture=False,
+            orbit='ascending',
+        )
+        s1extra = s1base.get_img_coll()
+        testimg_s1extra = ee.Image(s1extra.first())
+
+        expected_bands = [u'VV', u'VH', u'angle', u'DIFF', u'RATIO']
+        compare_bands(self, testimg_s1extra, expected_bands, {'msg': 'Sentinel 1 with extras had the wrong bands'})
 
     def test_speckle_correction(self):
         """
@@ -54,6 +71,23 @@ class Sentinel1TestCase(unittest.TestCase):
         # Get collection with extra bands.
         s1base = sentinel1.Sentinel1(self.roi, self.sdate, self.edate)
         s1speckle = s1base.get_img_coll(correctlia=False, addbands=True, addspeckle=True, addtexture=False, orbit='ascending')
+        testimg_s1speckle = ee.Image(s1speckle.first())
+
+        expected_bands = [u'VV', u'VH', u'angle', u'VH_RLSPCK', u'VV_RLSPCK', u'DIFF', u'RATIO', u'DIFF_RLSPCK', u'RATIO_RLSPCK']
+        compare_bands(self, testimg_s1speckle, expected_bands, {'msg': 'Sentinel 1 with speckle-correction had the wrong bands'})
+
+    def test_speckle_correction_constructor(self):
+        """
+        Test speckle-correction.
+        """
+        # Get collection with extra bands.
+        s1base = sentinel1.Sentinel1(
+            self.roi, self.sdate, self.edate,
+            correctlia=False, addbands=True,
+            addspeckle=True, addtexture=False,
+            orbit='ascending',
+        )
+        s1speckle = s1base.get_img_coll()
         testimg_s1speckle = ee.Image(s1speckle.first())
 
         expected_bands = [u'VV', u'VH', u'angle', u'VH_RLSPCK', u'VV_RLSPCK', u'DIFF', u'RATIO', u'DIFF_RLSPCK', u'RATIO_RLSPCK']
