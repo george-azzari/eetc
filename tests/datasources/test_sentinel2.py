@@ -56,7 +56,7 @@ class Sentinel2TestCase(unittest.TestCase):
         ]
         compare_bands(self, testimg_s2extra, expected_bands, {'msg': 'Sentinel 2 with VIs had the wrong bands'})
 
-    def test_VIs(self):
+    def test_VIs_constructor(self):
         """
         Test VIs.
         """
