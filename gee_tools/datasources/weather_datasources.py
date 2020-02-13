@@ -4,6 +4,7 @@ Center on Food Security and the Environment
 Department of Earth System Science
 Stanford University
 """
+import datetime
 
 import ee
 
