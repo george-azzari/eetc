@@ -6,7 +6,7 @@ from gee_tools.imgtools import appendBand, getGLCMTexture
 
 class Sentinel1(MultiImageDatasource):
 
-    def build_img_coll(self):
+    def build_img_coll(self, correctlia=False, addbands=True, addspeckle=True, addtexture=False, orbit='ascending'):
         """
 
         :return:
@@ -15,21 +15,33 @@ class Sentinel1(MultiImageDatasource):
         self.coll = ee.ImageCollection(self.name).filterBounds(self.filterpoly)
         self.coll = self.coll.filterDate(self.start_date, self.end_date)
 
-    def get_img_coll(self, correctlia=False, addbands=True, addspeckle=True, addtexture=False, orbit='ascending'):
+        self._correctlia = correctlia
+        self._addbands = addbands
+        self._addspeckle = addspeckle
+        self._addtexture = addtexture
+        self._orbit = orbit
+
+    def get_img_coll(self, correctlia=None, addbands=None, addspeckle=None, addtexture=None, orbit=None):
         """
             Args:
                 correctlia (bool):  If True, call self.correctLIA with SRTM terrain features.
-                    Defaults to False.
+                    Defaults to constructor arg which default to False.
                 addbands (bool):  If True, add bands for vv - vh and vh / vv with names 'DIFF' and 'RATIO'.  If addspeckle is
-                    True, then 'DIFF_RLSPCK' and 'RATIO_RLSPCK' are also added.  Defaults to True.
+                    True, then 'DIFF_RLSPCK' and 'RATIO_RLSPCK' are also added.
+                    Defaults to constructor arg which default to True.
                 addtexture (bool):  TODO.
-                    Defaults to False.
+                    Defaults to constructor arg which default to False.
                 orbit (str):  One of 'ascending' or 'descending'.  Filter on the 'orbitProperties_pass' pass property.
-                    Defaults to 'ascending'.
-    
+                    Defaults to constructor arg which default to 'ascending'.
+
             Returns:
                 (ee.ImageCollection):  Sentinel 1 image collection filtered and modified as described by the arguments.
         """
+        correctlia = self._correctlia if correctlia is None else correctlia
+        addbands = self._addbands if addbands is None else addbands
+        addspeckle = self._addspeckle if addspeckle is None else addspeckle
+        addtexture = self._addtexture if addtexture is None else addtexture
+        orbit = self._orbit if orbit is None else orbit
 
         # Filter to get images from different look angles.
         if orbit == 'ascending':
@@ -39,15 +51,14 @@ class Sentinel1(MultiImageDatasource):
             orbfilter = ee.Filter.eq('orbitProperties_pass', 'DESCENDING')
 
         else:
-          orbfilter = ee.Filter.inList('orbitProperties_pass', ['ASCENDING', 'DESCENDING'])
+            orbfilter = ee.Filter.inList('orbitProperties_pass', ['ASCENDING', 'DESCENDING'])
 
         iw = self.coll.filter(ee.Filter.And(
-          ee.Filter.eq('instrumentMode', 'IW'),
-          ee.Filter.eq('resolution', 'H'),
-          ee.Filter.listContains('transmitterReceiverPolarisation', 'VH'),
-          orbfilter
-          )
-        )
+            ee.Filter.eq('instrumentMode', 'IW'),
+            ee.Filter.eq('resolution', 'H'),
+            ee.Filter.listContains('transmitterReceiverPolarisation', 'VH'),
+            orbfilter
+        ))
 
         if correctlia:
             # Compute terrain features from SRTM and re-project into S1 projection and resolution.
@@ -69,7 +80,7 @@ class Sentinel1(MultiImageDatasource):
             iw = iw.map(lambda img: img.addBands(self.getS1Texture(img, 4, '')))
 
             if addspeckle:
-              iw = iw.map(lambda img: img.addBands(self.getS1Texture(img, 4, '_RLSPCK')))
+                iw = iw.map(lambda img: img.addBands(self.getS1Texture(img, 4, '_RLSPCK')))
 
         return iw
 

@@ -6,10 +6,16 @@ from gee_tools.imgtools import appendBand, getGLCMTexture, addDOY
 
 class Sentinel2TOA(MultiImageDatasource):
 
-    def build_img_coll(self):
+    def build_img_coll(self, addVIs=True, addCloudMasks=True):
         """
+        Args:
 
-        :return:
+        addVIs (bool): If True do two things.
+            Use self.refl_scale to convert bands to reflectance units.
+            Add the following bands.  'NBR1', 'NBR2', 'STI', 'NDTI', 'CRC', 'REIP', 'ChloropIndx', 'MTCI', 'WDRVI', 'NDVI'
+            Defaults to True.
+        addCloudMasks (bool):  If True, use addAllQAMaps to add cloud masks.
+            Defaults to True.
         """
 
         self.name = "COPERNICUS/S2"
@@ -29,17 +35,21 @@ class Sentinel2TOA(MultiImageDatasource):
             'VAPOR',
             'CIRRU',
             'SWIR1',
-            'SWIR2'])
+            'SWIR2'
+        ])
 
-    def get_img_coll(self, addVIs=True, addCloudMasks=True):
+        self._addVIs = addVIs
+        self._addCloudMasks = addCloudMasks
+
+    def get_img_coll(self, addVIs=None, addCloudMasks=None):
         """
         Args:
-            addVIs (bool): If True do two things.
+            addVIs (Optional[bool]): If True do two things.
                 Use self.refl_scale to convert bands to reflectance units.
                 Add the following bands.  'NBR1', 'NBR2', 'STI', 'NDTI', 'CRC', 'REIP', 'ChloropIndx', 'MTCI', 'WDRVI', 'NDVI'
-                Defaults to True.
-            addCloudMasks (bool):  If True, use addAllQAMaps to add cloud masks.
-                Defaults to True.
+                Defaults to constructor args which defaults to True.
+            addCloudMasks (Optional[bool]):  If True, use addAllQAMaps to add cloud masks.
+                Defaults to constructor args which defuaults to True.
                 
         Returns:
             (ee.ImageCollection):  The sentinel 2 image collection modified by arguments.
@@ -47,6 +57,8 @@ class Sentinel2TOA(MultiImageDatasource):
         # TODO: I may need to reconsider this method. Two main issues:
         # TODO:   1) FSE tree works with unscaled data
         # TODO:   2) VIs should always be computed in reflectance units (i.e. after scaling).
+        addVIs = self._addVIs if addVIs is None else addVIs
+        addCloudMasks = self._addCloudMasks if addCloudMasks is None else addCloudMasks
 
         s2 = self.coll
 

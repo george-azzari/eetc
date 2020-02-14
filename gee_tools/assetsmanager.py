@@ -1,7 +1,7 @@
 import ee
 import json
 import re
-from googlecloud import list_objects as lobjs
+from gee_tools.googlecloud import list_objects as lobjs
 
 
 """
@@ -12,6 +12,9 @@ And then point env var GOOGLE_APPLICATION_CREDENTIALS to JSON path. For example:
 export GOOGLE_APPLICATION_CREDENTIALS="/home/user/Downloads/[FILE_NAME].json"
 
 """
+
+def asset_exists(asset_id):
+    return ee.data.getInfo(asset_id) != None
 
 
 def upload_asset_core(gsfilepath, eefolderpath, nodata=-32768):
@@ -29,8 +32,8 @@ def upload_asset_core(gsfilepath, eefolderpath, nodata=-32768):
     else:
         eeasset_path = eefolderpath + '/' + eeasset_name
 
-    print 'Uploading from GCP source: ' + gsfilepath
-    print 'Ingesting to EE asset: ' + eeasset_path
+    print('Uploading from GCP source: ' + gsfilepath)
+    print('Ingesting to EE asset: ' + eeasset_path)
 
     request = {"id": eeasset_path,
                "tilesets": [

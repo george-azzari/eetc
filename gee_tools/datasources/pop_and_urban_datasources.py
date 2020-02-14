@@ -5,30 +5,7 @@ Image datasources related to human settlement patterns (population, urbanization
 """
 import ee
 from gee_tools.datasources.interface import MultiImageDatasource, GlobalImageDatasource, SingleImageDatasource, DatasourceError
-
-
-def get_closest_to_date(img_coll, date):
-
-    def closest(current_scene, closest_scene):
-        current_scene = ee.Image(current_scene)
-        closest_scene = ee.Image(closest_scene)
-        current_date = ee.Date(current_scene.date())
-        closest_date = ee.Date(closest_scene.date())
-        curr_diff = ee.Number(date.difference(current_date, 'day')).abs()
-        closest_diff = ee.Number(date.difference(closest_date, 'day')).abs()
-        return ee.Algorithms.If(closest_diff.gte(curr_diff),
-                                current_scene,
-                                closest_scene)
-
-    return ee.Image(img_coll.iterate(closest, img_coll.first()))
-
-
-def get_center_date(start_date, end_date):
-    start_date = ee.Date(start_date)
-    end_date = ee.Date(end_date)
-    diff = ee.Number(end_date.difference(start_date, 'day'))
-    advance = ee.Number(diff).divide(ee.Number(2.0))
-    return start_date.advance(advance, 'day')
+from gee_tools.datasources.util import get_center_date, get_closest_to_date
 
 
 class GHSLPop(GlobalImageDatasource):
@@ -66,7 +43,7 @@ class GHSLPop(GlobalImageDatasource):
     @staticmethod
     def rename_GHLS_pop(scene):
         band_names = ['POPULATION']
-        return scene.select(range(len(band_names)), band_names)
+        return scene.select(list(range(len(band_names))), band_names)
 
 
 class GHSLUrban(GlobalImageDatasource):
@@ -107,7 +84,7 @@ class GHSLUrban(GlobalImageDatasource):
             self.urban = self.urban.map(self.separate_urban_bands)
         else:
             self.urban = self.urban.map(self.rename_GHLS_Urban)
-            
+
         self.urban = self.urban.sort('system:time_start')
 
     def get_img_coll(self):
@@ -116,7 +93,7 @@ class GHSLUrban(GlobalImageDatasource):
     @staticmethod
     def rename_GHLS_Urban(scene):
         band_names = ["SMOD"]
-        return scene.select(range(len(band_names)), band_names)
+        return scene.select(list(range(len(band_names))), band_names)
 
     @staticmethod
     def separate_urban_bands(scene):

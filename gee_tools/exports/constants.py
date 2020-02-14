@@ -1,0 +1,2 @@
+DATE_STR_FORMAT = "%Y-%m-%d"
+EPSG3857 = 'EPSG:3857'

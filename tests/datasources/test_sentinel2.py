@@ -9,7 +9,7 @@ from gee_tools.datasources import sentinel2
 from tests.test_utils import compare_bands
 
 
-class Sentinel1TestCase(unittest.TestCase):
+class Sentinel2TestCase(unittest.TestCase):
 
     def setUp(self):
         ee.Initialize()
@@ -46,6 +46,26 @@ class Sentinel1TestCase(unittest.TestCase):
         # Get collection with extra bands.
         s2base = sentinel2.Sentinel2TOA(self.roi, self.sdate, self.edate)
         s2extra = s2base.get_img_coll(addVIs=True, addCloudMasks=False)
+        testimg_s2extra = ee.Image(s2extra.first())
+
+        expected_bands = [
+            u'AEROS', u'BLUE', u'GREEN', u'RED', u'RDED1', u'RDED2', u'RDED3', u'NIR', u'RDED4',
+            u'VAPOR', u'CIRRU', u'SWIR1', u'SWIR2', u'QA10', u'QA20', u'QA60', u'NBR1', u'NBR2',
+            u'STI', u'NDTI', u'CRC', u'REIP', u'GCVI', u'RDGCVI1', u'RDGCVI2', u'MTCI', u'MTCI2',
+            u'WDRVI', u'GRWDRVI', u'RDWDRVI', u'RDNDVI1', u'RDNDVI2', u'NDVI'
+        ]
+        compare_bands(self, testimg_s2extra, expected_bands, {'msg': 'Sentinel 2 with VIs had the wrong bands'})
+
+    def test_VIs_constructor(self):
+        """
+        Test VIs.
+        """
+        # Get collection with extra bands.
+        s2base = sentinel2.Sentinel2TOA(
+            self.roi, self.sdate, self.edate,
+            addVIs=True, addCloudMasks=False,
+        )
+        s2extra = s2base.get_img_coll()
         testimg_s2extra = ee.Image(s2extra.first())
 
         expected_bands = [

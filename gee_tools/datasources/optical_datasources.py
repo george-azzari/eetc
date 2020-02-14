@@ -133,7 +133,6 @@ class LandsatTOAPRE(MultiImageDatasource):
         return rgb_sharpened
 
     def _init_coll(self, name):
-
         return ee.ImageCollection(name).filterBounds(self.filterpoly).filterDate(self.s, self.e)
 
     @staticmethod
@@ -466,6 +465,31 @@ class LandsatSR(MultiImageDatasource):
     def mask_qaclear_l57(self, scene):
         clearmask = self.decode_qamask_l57(scene).select('pxqa_clear')
         return scene.updateMask(clearmask)
+
+    def get_quality_pixel_count(self):
+        """
+        Returns:
+            (Dictp[str, ee.Image]):  A mapping from landsat
+                collections to counts of unmasked pixels.
+                Landsat collections and filtered according
+                to consturctor arguments.
+                {
+                    'ls5_unmasked': self.l5qam.select([0], ['count']).count(),
+                    'ls7_unmasked': self.l7qam.select([0], ['count']).count(),
+                    'ls8_unmasked': self.l8qam.select([0], ['count']).count(),
+                    'ls5_total': self.l5.select([0], ['count']).count(),
+                    'ls7_total': self.l7.select([0], ['count']).count(),
+                    'ls8_total': self.l8.select([0], ['count']).count(),
+                }
+        """
+        return {
+            'ls5_unmasked': self.l5qam.select([0], ['count']).count(),
+            'ls7_unmasked': self.l7qam.select([0], ['count']).count(),
+            'ls8_unmasked': self.l8qam.select([0], ['count']).count(),
+            'ls5_total': self.l5.select([0], ['count']).count(),
+            'ls7_total': self.l7.select([0], ['count']).count(),
+            'ls8_total': self.l8.select([0], ['count']).count(),
+        }
 
 
 class MODISrefl(GlobalImageDatasource):
