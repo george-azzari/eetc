@@ -7,7 +7,8 @@ REQUIRED_PACKAGES = [
     'matplotlib >= 2.2.2',
     'numpy >= 1.13.3',
     'google-api-python-client >= 1.7.3',
-    'oauth2client >= 0.2.2'
+    'oauth2client >= 0.2.2',
+    'enum34 == 1.1.10;python_version < "3.4"',
 ]
 
 setup(
