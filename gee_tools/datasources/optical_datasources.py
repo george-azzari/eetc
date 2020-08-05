@@ -473,22 +473,30 @@ class LandsatSR(MultiImageDatasource):
                 collections to counts of unmasked pixels.
                 Landsat collections and filtered according
                 to consturctor arguments.
+                Values are a single band image with a band named 'count'.
                 {
-                    'ls5_unmasked': self.l5qam.select([0], ['count']).count(),
-                    'ls7_unmasked': self.l7qam.select([0], ['count']).count(),
-                    'ls8_unmasked': self.l8qam.select([0], ['count']).count(),
-                    'ls5_total': self.l5.select([0], ['count']).count(),
-                    'ls7_total': self.l7.select([0], ['count']).count(),
-                    'ls8_total': self.l8.select([0], ['count']).count(),
+                    'ls5_unmasked': ee.Image(...),
+                    'ls7_unmasked': ee.Image(...),
+                    'ls8_unmasked': ee.Image(...),
+                    'ls5_total': ee.Image(...),
+                    'ls7_total': ee.Image(...),
+                    'ls8_total': ee.Image(...),
                 }
         """
+        def _to_count_img(img_coll):
+            return ee.Image(ee.Algorithms.If(
+                ee.Number(0).eq(img_coll.size()),
+                ee.Image(0).select([0], ['count']),
+                img_coll.select([0], ['count']).count()
+            ))
+
         return {
-            'ls5_unmasked': self.l5qam.select([0], ['count']).count(),
-            'ls7_unmasked': self.l7qam.select([0], ['count']).count(),
-            'ls8_unmasked': self.l8qam.select([0], ['count']).count(),
-            'ls5_total': self.l5.select([0], ['count']).count(),
-            'ls7_total': self.l7.select([0], ['count']).count(),
-            'ls8_total': self.l8.select([0], ['count']).count(),
+            'ls5_unmasked': _to_count_img(self.l5qam),
+            'ls7_unmasked': _to_count_img(self.l7qam),
+            'ls8_unmasked': _to_count_img(self.l8qam),
+            'ls5_total': _to_count_img(self.l5),
+            'ls7_total': _to_count_img(self.l7),
+            'ls8_total': _to_count_img(self.l8),
         }
 
 
