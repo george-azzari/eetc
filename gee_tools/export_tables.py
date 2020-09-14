@@ -3,12 +3,14 @@ Author: George Azzari (gazzari@stanford.edu)
 Center on Food Security and the Environment
 Department of Earth System Science
 Stanford University
+
+Edited by: Shruti Jain
 """
 
 import ee
 
 
-def export_features(features, fname, export_to='drive'):
+def export_features(features, fname, export_to='drive', bucket_name='atlas-common'):
 
     if export_to == 'drive':
         task = ee.batch.Export.table.toDrive(features, fname, '')
@@ -16,7 +18,7 @@ def export_features(features, fname, export_to='drive'):
     else:
         task = ee.batch.Export.table.toCloudStorage(features,
                                                     description=fname,
-                                                    bucket='us-cdl-samples',
+                                                    bucket=bucket_name,
                                                     fileNamePrefix=fname,
                                                     fileFormat=None)
     task.start()
@@ -36,10 +38,8 @@ def get_point(image, point, scale, depth):
 
     return ee.Feature(ee.Feature(None, s).copyProperties(image, None, image.bandNames()).copyProperties(point, None, image.bandNames())).set({
 
-        #'PTLON': ee.Number(ee.List(point.geometry().coordinates()).get(0)),
-        #'PTLAT': ee.Number(ee.List(point.geometry().coordinates()).get(1)),
-        #'OBSDATE': ee.Date(image.get('system:time_start')).format(),
-        #'MSTIME': image.get('system:time_start')
+        'PTLON': ee.Number(ee.List(point.geometry().coordinates()).get(0)),
+        'PTLAT': ee.Number(ee.List(point.geometry().coordinates()).get(1))
 
     })
 
@@ -97,26 +97,33 @@ def sampleregions_auto_image(image, regions, scale, controlvar, doexport, fname)
         return samples
 
 
-def sampleregion_image(image, region, scale, npx):
+def sampleregion_image(image, region, scale, npx, fac, geo=True):
 
     samples = image.sample(
         region=region.geometry(),
         scale=scale,
         projection=None,
-        factor=None,
+        factor=fac,
         numPixels=npx,
         seed=12345,
         dropNulls=True,
-        tileScale=16)
+        tileScale=16,
+        geometries=geo)
 
-    samples = samples.map(lambda p: ee.Feature(p.copyProperties(region).copyProperties(image)))
+    samples = samples.map(lambda p: ee.Feature(p.copyProperties(region).copyProperties(image, None, image.bandNames())))
+
+    if geo==True:
+        samples = samples.map(lambda p: p.set({
+            'PTLON': ee.Number(ee.List(p.geometry().coordinates()).get(0)),
+            'PTLAT': ee.Number(ee.List(p.geometry().coordinates()).get(1))
+            }))
 
     return samples
 
 
-def sampleregions_image(image, regions, scale, npx, doexport, fname):
+def sampleregions_image(image, regions, scale, npx, fac, doexport, fname, geo=True):
 
-    samples = regions.map(lambda region: sampleregion_image(image, region, scale, npx)).flatten()
+    samples = regions.map(lambda region: sampleregion_image(image, region, scale, npx, fac, geo)).flatten()
 
     if doexport:
         task = export_features(samples, fname, export_to='drive')
