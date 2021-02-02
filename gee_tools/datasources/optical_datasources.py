@@ -500,6 +500,45 @@ class LandsatSR(MultiImageDatasource):
         }
 
 
+class LandsatSRQuality(MultiImageDatasource):
+    """
+    Landsat Quality count class.
+    """
+    def build_img_coll(self):
+
+        self.orignames = ['ls5_unmasked', 'ls7_unmasked', 'ls8_unmasked', 'ls5_total', 'ls7_total', 'ls8_total']
+        self.newnames = ['LS5_QUAL', 'LS7_QUAL', 'LS8_QUAL', 'LS5_TOTAL', 'LS7_TOTAL', 'LS8_TOTAL']
+
+        # Get quality count images
+        quality_count_images = LandsatSR(
+            self.filterpoly, self.start_date, self.end_date,
+        ).get_quality_pixel_count()
+
+        # Rename band in each image
+        quality_count_images = {k: v.select(['count'], [k]) for k, v in quality_count_images.items()} 
+
+        # Stack each one-band image into one image
+        quality_count_stacked = self.stack_bands(quality_count_images)
+
+        # Rename bands in the new image
+        quality_count_stacked = self.rename(quality_count_stacked)
+
+        # Set the image collection
+        self.im_coll = ee.ImageCollection(quality_count_stacked)
+
+    def get_img_coll(self):
+        return self.im_coll
+
+    def rename(self, img):
+        return img.select(self.orignames, self.newnames)
+
+    def stack_bands(self, img_dict):
+        stacked = img_dict[self.orignames[0]]
+        for band_name in self.orignames[1:]:
+            stacked = stacked.addBands(img_dict[band_name])
+        return stacked
+
+
 class MODISrefl(GlobalImageDatasource):
     """
     Global:  filterpoly is ignored.
