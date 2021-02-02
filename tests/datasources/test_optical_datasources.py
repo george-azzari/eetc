@@ -35,6 +35,23 @@ class LandsatSRTestCase(unittest.TestCase):
             quality_pixel_count_band_names
         )
 
+    def test_get_quality_pixel_count(self):
+        quality_pixel_count = opt_ds.LandsatSRQuality(
+            self.roi, '2012-08-01', '2012-12-31',
+        ).get_img_coll().mosaic()
+
+        quality_pixel_count = quality_pixel_count.getInfo()
+        bands = quality_pixel_count['bands']
+        bands = {band_info['id']: band_info['data_type']['precision'] for band_info in bands}
+
+        self.assertDictEqual(
+            {
+                band: 'int'
+                for band in ['LS5_QUAL', 'LS7_QUAL', 'LS8_QUAL', 'LS5_TOTAL', 'LS7_TOTAL', 'LS8_TOTAL']
+            },
+            bands
+        )
+
 
 if __name__ == '__main__':
     unittest.main()
