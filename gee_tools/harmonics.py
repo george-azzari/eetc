@@ -50,8 +50,8 @@ def add_harmonics(image, timeband, omega, nharmonics=2):
 
 def get_harmonic_coll(collection, omega=1, nharmonics=2, timeband=None, refdate=None):
     
-    if not timeband:
-        if not refdate:
+    if timeband is None:
+        if refdate is None:
             d = ee.Image(collection.first()).date()
             refdate = ee.Date.fromYMD(d.get('year'), 1, 1)
         timeband = 't'
