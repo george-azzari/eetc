@@ -473,23 +473,70 @@ class LandsatSR(MultiImageDatasource):
                 collections to counts of unmasked pixels.
                 Landsat collections and filtered according
                 to consturctor arguments.
+                Values are a single band image with a band named 'count'.
                 {
-                    'ls5_unmasked': self.l5qam.select([0], ['count']).count(),
-                    'ls7_unmasked': self.l7qam.select([0], ['count']).count(),
-                    'ls8_unmasked': self.l8qam.select([0], ['count']).count(),
-                    'ls5_total': self.l5.select([0], ['count']).count(),
-                    'ls7_total': self.l7.select([0], ['count']).count(),
-                    'ls8_total': self.l8.select([0], ['count']).count(),
+                    'ls5_unmasked': ee.Image(...),
+                    'ls7_unmasked': ee.Image(...),
+                    'ls8_unmasked': ee.Image(...),
+                    'ls5_total': ee.Image(...),
+                    'ls7_total': ee.Image(...),
+                    'ls8_total': ee.Image(...),
                 }
         """
+        def _to_count_img(img_coll):
+            return ee.Image(ee.Algorithms.If(
+                ee.Number(0).eq(img_coll.size()),
+                ee.Image(0).select([0], ['count']),
+                img_coll.select([0], ['count']).count()
+            ))
+
         return {
-            'ls5_unmasked': self.l5qam.select([0], ['count']).count(),
-            'ls7_unmasked': self.l7qam.select([0], ['count']).count(),
-            'ls8_unmasked': self.l8qam.select([0], ['count']).count(),
-            'ls5_total': self.l5.select([0], ['count']).count(),
-            'ls7_total': self.l7.select([0], ['count']).count(),
-            'ls8_total': self.l8.select([0], ['count']).count(),
+            'ls5_unmasked': _to_count_img(self.l5qam),
+            'ls7_unmasked': _to_count_img(self.l7qam),
+            'ls8_unmasked': _to_count_img(self.l8qam),
+            'ls5_total': _to_count_img(self.l5),
+            'ls7_total': _to_count_img(self.l7),
+            'ls8_total': _to_count_img(self.l8),
         }
+
+
+class LandsatSRQuality(MultiImageDatasource):
+    """
+    Landsat Quality count class.
+    """
+    def build_img_coll(self):
+
+        self.orignames = ['ls5_unmasked', 'ls7_unmasked', 'ls8_unmasked', 'ls5_total', 'ls7_total', 'ls8_total']
+        self.newnames = ['LS5_QUAL', 'LS7_QUAL', 'LS8_QUAL', 'LS5_TOTAL', 'LS7_TOTAL', 'LS8_TOTAL']
+
+        # Get quality count images
+        quality_count_images = LandsatSR(
+            self.filterpoly, self.start_date, self.end_date,
+        ).get_quality_pixel_count()
+
+        # Rename band in each image
+        quality_count_images = {k: v.select(['count'], [k]) for k, v in quality_count_images.items()} 
+
+        # Stack each one-band image into one image
+        quality_count_stacked = self.stack_bands(quality_count_images)
+
+        # Rename bands in the new image
+        quality_count_stacked = self.rename(quality_count_stacked)
+
+        # Set the image collection
+        self.im_coll = ee.ImageCollection(quality_count_stacked)
+
+    def get_img_coll(self):
+        return self.im_coll
+
+    def rename(self, img):
+        return img.select(self.orignames, self.newnames)
+
+    def stack_bands(self, img_dict):
+        stacked = img_dict[self.orignames[0]]
+        for band_name in self.orignames[1:]:
+            stacked = stacked.addBands(img_dict[band_name])
+        return stacked
 
 
 class MODISrefl(GlobalImageDatasource):
