@@ -9,6 +9,16 @@ import ee
 import numpy as np
 import gee_tools.datasources.optical_datasources as optix
 
+def add_timeunit(image, refdate):
+    
+    date = image.date()
+    
+    #Letting user pick the reference date
+    dyear = date.difference(refdate, 'year')
+    t = image.select(0).multiply(0).add(dyear).select([0],['t']).float()
+    
+    imageplus = image.addBands(t)
+    return imageplus.set('timeunit', dyear)
 
 def append_band(current, previous):
 
@@ -17,63 +27,67 @@ def append_band(current, previous):
     # Return the accumulation
     return accum
 
-
-def add_timevars(image, tunit):
-
-    # TODO: update this to be a simpler add_timeunit. Other info are irrelevant to the regression.
-
-    date = image.date()
-    doy = date.getRelative('day', 'year').add(1)
-    doyimage = image.select(0).multiply(0).add(doy).select([0], ['DOY']).toInt16()
-
-    month = date.getRelative('month', 'year')
-    monthimage = image.select(0).multiply(0).add(month).select([0], ['MONTH']).toInt16()
-
-    jan1 = ee.Date.fromYMD(date.get('year'), 1, 1)
-    dyear = date.difference(jan1, 'year')
-    dyimage = image.select(0).multiply(0).add(dyear).select([0], ['DYEAR']).float()
-
-    ms = ee.Number(image.get('system:time_start'))
-    msimage = image.select(0).multiply(0).add(ms).select([0], ['MSTIME'])
-
-    imageplus = ee.Image.cat([image, doyimage, monthimage, msimage, dyimage])
-    imageplus = imageplus.set({'DOY': doy, 'MONTH': month, 'YEAR': date.get('year'), 'DYEAR': dyear})
-
-    bnames = ee.List(imageplus.bandNames()).replace(tunit, 't')
-
-    return imageplus.rename(bnames)
-
-
 def add_constant(image):
 
     return image.addBands(image.select(0).multiply(0).add(1).select([0], ['constant']))
 
+def add_harmonics(image, timeband, omega, nharmonics=2):
+    
+    def _add_harmonic(n):
+        timerad = image.select(timeband).multiply(n * 2 * np.pi * omega)
+        cos = timerad.cos().rename([f"cos{n}"])
+        sin = timerad.sin().rename([f"sin{n}"])
+        return ee.List([cos, sin])
+    
+    timeradians = ee.List.sequence(1, nharmonics, 1).map(_add_harmonic)
+    timeradians = timeradians.flatten()
+    
+    # Convert list into a collection and smash into an image.
+    timeradsimg = ee.Image(ee.ImageCollection.fromImages(timeradians).iterate(append_band))
+    constant = image.select(timeband).divide(image.select(timeband)).rename('constant')
+    
+    return image.addBands(timeradsimg).addBands(constant).set('independents', timeradsimg.bandNames().add(timeband).add('constant'))
 
-def add_harmonics(image, omega):
-
-    image = add_timevars(image, 'DYEAR')
-    image = add_constant(image)
-
-    timeRadians = image.select('t').multiply(2 * np.pi * omega)
-    timeRadians2 = image.select('t').multiply(4 * np.pi * omega)
-
-    cost = timeRadians.cos().rename(['cos'])
-    sint = timeRadians.sin().rename(['sin'])
-    cost2 = timeRadians2.cos().rename(['cos2'])
-    sint2 = timeRadians2.sin().rename(['sin2'])
-
-    return image.addBands(cost).addBands(sint).addBands(cost2).addBands(sint2)
-
-
-def get_harmonic_coll(collection, omega=1.5):
-
-    f = lambda img: add_harmonics(img, omega)
-
+def get_harmonic_coll(collection, omega=1, nharmonics=2, timeband=None, refdate=None):
+    
+    if not timeband:
+        if not refdate:
+            d = ee.Image(collection.first()).date()
+            refdate = ee.Date.fromYMD(d.get('year'), 1, 1)
+        timeband = 't'
+        collection = collection.map(lambda img: add_timeunit(img, refdate))
+    
     # Add harmonic terms as new image bands.
+    f = lambda img: add_harmonics(img, timeband, omega, nharmonics)
     harmonic_coll = collection.map(f)
 
     return harmonic_coll
 
+
+""" Generate a dummy collection of harmonis indepents with a cadence of ndays.
+    Useful to generate "predicted" values from pre-fitted coefficients """
+def get_dummy_time(startdate, enddate, ndays, dummyimg, addharmonics, omega=1, nharmonics=2):
+    
+    def _add_dummy(d):
+        d = ee.Date(d)
+        dummy = dummyimg.add(d.millis()).select([0],['dummy']).set('date', d.format(), 'system:time_start', d.millis())
+        dummy = add_timeunit(dummy, startdate)
+        return dummy
+
+    diff = enddate.difference(startdate, 'day')
+    increments = ee.List.sequence(1, diff, None, ndays)
+    
+    #Had to add the "round" part to avoid sub-daily increments when ndays is not 365.
+    dates = increments.map(lambda i: startdate.advance(ee.Number(i).round(), 'day'))
+
+    dummys = dates.map(_add_dummy)
+    
+    imgcoll =  ee.ImageCollection.fromImages(dummys).set('startdate', startdate, 'enddate', enddate, 'ndays', ndays)
+    
+    if addharmonics:
+        imgcoll = get_harmonic_coll(imgcoll, omega, nharmonics, 't')  
+    
+    return  imgcoll
 
 def _arrayimg_hrmregr_single(harmonicoll, dependent, independents):
 
@@ -114,18 +128,15 @@ def hrmregr_single(harmonicoll, dependent, independents):
     rmse = hregr.select('residuals').arrayProject([0]).arrayFlatten([[dependent.cat(ee.String('_rmse'))]])
 
     # Computing variance for R2
-    totreducer = ee.Reducer.sampleVariance()
-    variance = harmonicoll.select(dependent).reduce(totreducer)
+    totreducer = ee.Reducer.sampleVariance().combine(ee.Reducer.count(), None, True).combine(ee.Reducer.mean(), None, True)
+    stats = harmonicoll.select(dependent).reduce(totreducer)
+    variance = stats.select(dependent.cat(ee.String('_variance')))
 
-    # UPDATE: computing R2 from RMSE and variance can be done on the fly.
-    #         Suppressing it here can save storage if asset is exported.
-    # # Computing R2
-    # r2bandn = dependent.cat(ee.String('_r2'))
-    # r2 = ee.Image(1).updateMask(variance).subtract(rmse.pow(2).divide(variance)).select([0], [r2bandn])
-
-    imgcoeffs = imgcoeffs.addBands(rmse).addBands(variance)#.addBands(r2)
-
-    return imgcoeffs
+    # Computing R2
+    r2bandn = dependent.cat(ee.String('_r2'))
+    r2 = ee.Image(1).updateMask(variance).subtract(rmse.pow(2).divide(variance)).select([0], [r2bandn])
+    
+    return imgcoeffs.addBands(stats).addBands(rmse).addBands(variance).addBands(r2)
 
 
 def _get_prediction(harmonicimg, regrcoeffimg, dependent, independents):
@@ -156,6 +167,9 @@ def hrmregr_multi(harmonicoll, dependents, independents, ascoll):
     :return: ee.Image containing coefficients for all dependents and independents.
     """
 
+    if not independents:
+        independents = ee.List(ee.Image(harmonicoll.first()).get('independents'))
+
     f= lambda dependent: hrmregr_single(harmonicoll, dependent, independents)
     coeffcoll = ee.ImageCollection.fromImages(ee.List(dependents).map(f))
 
@@ -165,53 +179,80 @@ def hrmregr_multi(harmonicoll, dependents, independents, ascoll):
     else:
         return ee.Image(coeffcoll.iterate(append_band))
 
+def run_std_regressions(imagecoll, bands, refdate, independents=None, omega=1, nharmonics=2, ascoll=False):
+    
+    # Init a new time variable with default reference date 
+    harmcoll = get_harmonic_coll(imagecoll, omega, nharmonics, None, refdate)
+    
+    # Compute Regression Coefficients
+    harmcoeffs = hrmregr_multi(harmcoll, bands, independents, ascoll)
+    
+    return  harmcoeffs
 
-def lx_hregr(region, start_date, end_date, omega=1.5, imgmask=None, bands=None, rmbands=None,
-             independents=None, addcount=True):
-    """
-    Generate harmonics composite for a merged Landsat SR collection.
-    :param region: ee.Feature
-    :param start_date: ee.Date
-    :param end_date: ee.Date
-    :param omega: the omega factor for the Fourier series
-    :param imgmask: mask to use on individual images prior generating the composite (optional)
-    :param bands: the bands to use as dependent variables (optional, defaults to all optical bands and indexes)
-    :param rmbands: bands to remove from default (optional)
-    :param addcount: whether a count band should be added
-    :return: ee.Image (composite)
-    """
-    if independents is None:
-        # NOTE: removed 't' (linear term)
-        independents = ee.List(['constant', 'cos', 'sin', 'cos2', 'sin2'])
+def fit_harmonics(harmcoeffs, imgcoll, omega, nharmonics, bands, refdate):
 
-    # TODO: update to new Collection1 collections
-    lx = optix.LandsatSR(region, start_date, end_date).mergedqam
-    lx = lx.select(['BLUE', 'GREEN', 'RED', 'NIR', 'SWIR1', 'SWIR2']).map(optix.addVIs)
+    def _fit_harmonic(image):
+        indep = ee.List(ee.Image(image).get('independents'))
+        def _fit_band(band):
+            indepcoeffs = indep.map(lambda s: ee.String(band).cat(ee.String("_")).cat(s))
+            return image.select(indep).multiply(harmcoeffs.select(indepcoeffs)).reduce('sum').rename(ee.String(band).cat(ee.String("_HARMFIT")))
+        fittedimg = ee.List(bands).map(_fit_band)
+        fittedimg = ee.ImageCollection.fromImages(fittedimg.add(image)).iterate(append_band)
+        return fittedimg
 
-    if imgmask is not None:
-        lx = lx.map(lambda img: img.updateMask(imgmask))
+    harmcoll = get_harmonic_coll(imgcoll, omega, nharmonics, None, refdate)
 
-    hlx = get_harmonic_coll(lx, omega)
+    # Compute fitted values.
+    fittedcoll = harmcoll.map(_fit_harmonic)
+    return fittedcoll
 
-    if bands is None:
-        nonoptical = ee.List(['t', 'DOY', 'MONTH', 'MSTIME', 'DYEAR', 'constant'])
-        bands = ee.Image(lx.first()).bandNames().removeAll(nonoptical)
+# NOTE: Out of date
+# def lx_hregr(region, start_date, end_date, omega=1.5, imgmask=None, bands=None, rmbands=None,
+#              independents=None, addcount=True):
+#     """
+#     Generate harmonics composite for a merged Landsat SR collection.
+#     :param region: ee.Feature
+#     :param start_date: ee.Date
+#     :param end_date: ee.Date
+#     :param omega: the omega factor for the Fourier series
+#     :param imgmask: mask to use on individual images prior generating the composite (optional)
+#     :param bands: the bands to use as dependent variables (optional, defaults to all optical bands and indexes)
+#     :param rmbands: bands to remove from default (optional)
+#     :param addcount: whether a count band should be added
+#     :return: ee.Image (composite)
+#     """
+#     if independents is None:
+#         # NOTE: removed 't' (linear term)
+#         independents = ee.List(['constant', 'cos', 'sin', 'cos2', 'sin2'])
 
-        if rmbands is not None:
-            bands = bands.removeAll(ee.List(rmbands))
+#     # TODO: update to new Collection1 collections
+#     lx = optix.LandsatSR(region, start_date, end_date).mergedqam
+#     lx = lx.select(['BLUE', 'GREEN', 'RED', 'NIR', 'SWIR1', 'SWIR2']).map(optix.addVIs)
 
-    else:
-        bands = ee.List(bands)
+#     if imgmask is not None:
+#         lx = lx.map(lambda img: img.updateMask(imgmask))
 
-    allcoeffs = hrmregr_multi(hlx, bands, independents, False)
-    allcoeffs = allcoeffs.set('omega', omega,
-                              'n', 2,
-                              'start_date', start_date.millis(),
-                              'end_date', end_date.millis(),
-                              'formula', 'A + Bt + Ccos(2piwt) + Dsin(2piwt) + Ecos(4piwt) + Fsin(4piwt)')
+#     hlx = get_harmonic_coll(lx, omega)
 
-    if addcount:
-        count = lx.select(['NIR']).count().select([0], ['count'])
-        allcoeffs = allcoeffs.addBands(count)
+#     if bands is None:
+#         nonoptical = ee.List(['t', 'DOY', 'MONTH', 'MSTIME', 'DYEAR', 'constant'])
+#         bands = ee.Image(lx.first()).bandNames().removeAll(nonoptical)
 
-    return allcoeffs
+#         if rmbands is not None:
+#             bands = bands.removeAll(ee.List(rmbands))
+
+#     else:
+#         bands = ee.List(bands)
+
+#     allcoeffs = hrmregr_multi(hlx, bands, independents, False)
+#     allcoeffs = allcoeffs.set('omega', omega,
+#                               'n', 2,
+#                               'start_date', start_date.millis(),
+#                               'end_date', end_date.millis(),
+#                               'formula', 'A + Bt + Ccos(2piwt) + Dsin(2piwt) + Ecos(4piwt) + Fsin(4piwt)')
+
+#     if addcount:
+#         count = lx.select(['NIR']).count().select([0], ['count'])
+#         allcoeffs = allcoeffs.addBands(count)
+
+#     return allcoeffs
