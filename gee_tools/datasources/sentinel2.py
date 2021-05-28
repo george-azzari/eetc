@@ -72,7 +72,7 @@ class Sentinel2TOA(MultiImageDatasource):
             # FSE tree uses scaled values, not reflectance.
             s2 = s2.map(self.addAllQAMaps)
         
-        if corr_coeffs:
+        if corr_coeffs is not None:
             # correction coefficients must be applied prior to calculating VIs, for more accurate indices
             s2 = s2.map(lambda image: self.correctBands(image, corr_coeffs))
 
