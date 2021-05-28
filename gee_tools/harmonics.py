@@ -34,7 +34,7 @@ def add_constant(image):
 def add_harmonics(image, timeband, omega, nharmonics=2):
     
     def _add_harmonic(n):
-        timerad = image.select(timeband).multiply(n * 2 * np.pi * omega)
+        timerad = image.select(timeband).multiply(ee.Number(n).multiply(2 * np.pi * omega))
         cos = timerad.cos().rename([f"cos{n}"])
         sin = timerad.sin().rename([f"sin{n}"])
         return ee.List([cos, sin])
