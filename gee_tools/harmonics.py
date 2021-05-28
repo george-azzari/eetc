@@ -35,8 +35,8 @@ def add_harmonics(image, timeband, omega, nharmonics=2):
     
     def _add_harmonic(n):
         timerad = image.select(timeband).multiply(ee.Number(n).multiply(2 * np.pi * omega))
-        cos = timerad.cos().rename([f"cos{n}"])
-        sin = timerad.sin().rename([f"sin{n}"])
+        cos = timerad.cos().rename(ee.String('cos').cat(ee.String(ee.Number(n).toInt())))
+        sin = timerad.sin().rename(ee.String('sin').cat(ee.String(ee.Number(n).toInt())))
         return ee.List([cos, sin])
     
     timeradians = ee.List.sequence(1, nharmonics, 1).map(_add_harmonic)
