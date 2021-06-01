@@ -34,12 +34,12 @@ def add_constant(image):
 def add_harmonics(image, timeband, omega, nharmonics=2):
     
     def _add_harmonic(n):
-        timerad = image.select(timeband).multiply(ee.Number(n).multiply(2 * np.pi * omega))
-        cos = timerad.cos().rename(ee.String('cos').cat(ee.String(ee.Number(n).toInt())))
-        sin = timerad.sin().rename(ee.String('sin').cat(ee.String(ee.Number(n).toInt())))
+        timerad = image.select(timeband).multiply(n * 2 * np.pi * omega)
+        cos = timerad.cos().rename([f"cos{n}"])
+        sin = timerad.sin().rename([f"sin{n}"])
         return ee.List([cos, sin])
     
-    timeradians = ee.List.sequence(1, nharmonics, 1).map(_add_harmonic)
+    timeradians = ee.List([_add_harmonic(n) for n in range(1, nharmonics+1)])
     timeradians = timeradians.flatten()
     
     # Convert list into a collection and smash into an image.
@@ -136,7 +136,7 @@ def hrmregr_single(harmonicoll, dependent, independents):
     r2bandn = dependent.cat(ee.String('_r2'))
     r2 = ee.Image(1).updateMask(variance).subtract(rmse.pow(2).divide(variance)).select([0], [r2bandn])
     
-    return imgcoeffs.addBands(stats).addBands(rmse).addBands(variance).addBands(r2)
+    return imgcoeffs.addBands(stats).addBands(rmse).addBands(r2)
 
 
 def _get_prediction(harmonicimg, regrcoeffimg, dependent, independents):
