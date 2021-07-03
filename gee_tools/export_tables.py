@@ -17,7 +17,7 @@ def export_features(features, fname, export_to='drive', bucket_name='atlas-commo
 
     else:
         task = ee.batch.Export.table.toCloudStorage(features,
-                                                    description=fname.split('/')[-1],,
+                                                    description=fname.split('/')[-1],
                                                     bucket=bucket_name,
                                                     fileNamePrefix=fname,
                                                     fileFormat=None)
