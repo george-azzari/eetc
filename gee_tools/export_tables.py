@@ -10,7 +10,7 @@ Edited by: Shruti Jain
 import ee
 
 
-def export_features(features, fname, export_to='drive', bucket_name='atlas-common'):
+def export_features(features, fname, export_to='drive', bucket_name=None):
 
     if export_to == 'drive':
         task = ee.batch.Export.table.toDrive(features, fname, '')
@@ -50,19 +50,19 @@ def reducegrid_core(image, grid, scale):
     return samples
 
 
-def reducegrid_image(image, grid, scale, control, doexport, fname):
+def reducegrid_image(image, grid, scale, control, doexport, fname, export_to='drive', bucket_name=None):
 
     samples = reducegrid_core(image, grid, scale)
 
     if doexport:
-        t = export_features(samples, fname, export_to='drive')
+        t = export_features(samples, fname, export_to=export_to, bucket_name=bucket_name)
         return {'samples':samples, 'task':t}
 
     else:
         return samples
 
 
-def reducegrid_imgcoll(imagecoll, grid, scale, control, doexport, fname):
+def reducegrid_imgcoll(imagecoll, grid, scale, control, doexport, fname, export_to='drive', bucket_name=None):
 
     samples = imagecoll.map(
        lambda image: reducegrid_core(image, grid, scale)
@@ -71,14 +71,14 @@ def reducegrid_imgcoll(imagecoll, grid, scale, control, doexport, fname):
     samples = samples.filter(ee.Filter.neq(control, None))
   
     if doexport:
-        t = export_features(samples, fname, export_to='drive')
+        t = export_features(samples, fname, export_to=export_to, bucket_name=bucket_name)
         return {'samples':samples, 'task':t}
 
     else:
         return samples
 
 
-def sampleregions_auto_image(image, regions, scale, controlvar, doexport, fname):
+def sampleregions_auto_image(image, regions, scale, controlvar, doexport, fname, export_to='drive', bucket_name=None):
 
     samples = image.sampleRegions(
         collection=regions,
@@ -90,7 +90,7 @@ def sampleregions_auto_image(image, regions, scale, controlvar, doexport, fname)
     samples = samples.filter(ee.Filter.neq(controlvar, None))
 
     if doexport:
-        task = export_features(samples, fname, export_to='drive')
+        task = export_features(samples, fname, export_to=export_to, bucket_name=bucket_name)
         return {'samples': samples, 'task': task}
 
     else:
@@ -121,12 +121,12 @@ def sampleregion_image(image, region, scale, npx, fac, geo=True):
     return samples
 
 
-def sampleregions_image(image, regions, scale, npx, fac, doexport, fname, geo=True):
+def sampleregions_image(image, regions, scale, npx, fac, doexport, fname, geo=True, export_to='drive', bucket_name=None):
 
     samples = regions.map(lambda region: sampleregion_image(image, region, scale, npx, fac, geo)).flatten()
 
     if doexport:
-        task = export_features(samples, fname, export_to='drive')
+        task = export_features(samples, fname, export_to=export_to, bucket_name=bucket_name)
         return {'samples': samples, 'task': task}
 
     else:
