@@ -108,7 +108,7 @@ def _arrayimg_hrmregr_single(harmonicoll, dependent, independents):
     regressors = harmonicoll.select(independents.add(dependent))
     regression = regressors.reduce(ee.Reducer.linearRegression(independents.length(), 1))
 
-    return regression
+    return regression.reproject(ee.Image(harmonicoll.first()).projection())
 
 
 def hrmregr_single(harmonicoll, dependent, independents):
@@ -130,6 +130,7 @@ def hrmregr_single(harmonicoll, dependent, independents):
     # Computing variance for R2
     totreducer = ee.Reducer.sampleVariance().combine(ee.Reducer.count(), None, True).combine(ee.Reducer.mean(), None, True)
     stats = harmonicoll.select(dependent).reduce(totreducer)
+    stats = stats.reproject(ee.Image(harmonicoll.first()).projection())
     variance = stats.select(dependent.cat(ee.String('_variance')))
 
     # Computing R2
