@@ -44,7 +44,7 @@ def add_harmonics(image, timeband, omega, nharmonics=2):
     
     # Convert list into a collection and smash into an image.
     timeradsimg = ee.Image(ee.ImageCollection.fromImages(timeradians).iterate(append_band))
-    constant = image.select(timeband).divide(image.select(timeband)).rename('constant')
+    constant = image.addBands(image.select(0).multiply(0).add(1).select([0], ['constant']))
     
     return image.addBands(timeradsimg).addBands(constant).set('independents', timeradsimg.bandNames().add(timeband).add('constant'))
 
