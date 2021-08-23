@@ -72,7 +72,7 @@ class DMSPCalV4ClosestBefore2014(GlobalImageDatasource):
 
         zeros_image = ee.Image(0).reproject(
             ee.Image(dmsp_original.first()).projection()
-        )
+        ).select([0], ['DMSP'])
         zeros_image = zeros_image.set('system:time_start', ee.Date('2014-01-01').millis())
         zeros_image = zeros_image.set('system:time_end', ee.Date('3000-01-01').millis())
         zeros_image_coll = ee.ImageCollection([zeros_image])
