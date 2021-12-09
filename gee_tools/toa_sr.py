@@ -83,7 +83,7 @@ def get_corr_coeffs(geometry, country, max_slope=10, start_date=ee.Date('2019-01
         get_coeffs(sample_points, bandname, country) for bandname in bandnames
     ]))
 
-    task = export_features(coefficients, f"s2_correction_coeffs/s2_corr_coeffs_{country}.csv")
+    task = export_features(coefficients, f"s2_correction_coeffs/s2_corr_coeffs_{country}")
     
     return task
 
