@@ -43,24 +43,27 @@ def get_coeffs(sample_points, bandname, country):
         reducer=ee.Reducer.linearFit(), 
         selectors=[bandname+'1', bandname+'2']
         )
-    coeffs = ee.Feature(None, coeffs).set('band', bandname,'country', country)
+    n = sample_points.size()
+    coeffs = ee.Feature(None, coeffs).set('n', n, 'band', bandname,'country', country)
     return coeffs
 
 # For s2 toa
 def maskClouds_toa(img, bandnames):
-    img = img.updateMask(img.select('PXQA60_CLEAR'))
+    qa60 = img.select('QA60_DECODED')
+    clear = qa60.updateMask(qa60.eq(1))
+    img = img.updateMask(clear)
     bandnames_new = [b+'1' for b in bandnames]
     return img.select(bandnames, bandnames_new)
 
 # For s2 sr
 def maskClouds_sr(img, bandnames):
     scl = img.select(['SCL'])
-    clear = scl.updateMask(scl.eq(4).or(scl.eq(5)))
+    clear = scl.updateMask(scl.eq(4).Or(scl.eq(5)))
     img = img.updateMask(clear)
     bandnames_new = [b+'2' for b in bandnames]
     return img.select(bandnames, bandnames_new)
 
-def get_corr_coeffs(geometry, country, max_slope=1, start_date = ee.Date('2019-01-01'), end_date = ee.Date('2019-03-31'), num_pixels= 2):
+def get_corr_coeffs(geometry, country, max_slope=10, start_date=ee.Date('2019-01-01'), end_date=ee.Date('2019-12-31'), num_pixels=2):
     srtm = ee.Image("USGS/SRTMGL1_003")
     topog = ee.Algorithms.Terrain(srtm).select(['elevation', 'slope', 'aspect'],['ELEV', 'SLO', 'ASP'])
     slo = topog.select('SLO')
@@ -80,7 +83,7 @@ def get_corr_coeffs(geometry, country, max_slope=1, start_date = ee.Date('2019-0
         get_coeffs(sample_points, bandname, country) for bandname in bandnames
     ]))
 
-    task = export_features(coefficients, f"s2_correction_coeffs/s2_corr_coeffs_{country}.csv", export_to='gcs', bucket_name='ag_common')
+    task = export_features(coefficients, f"s2_correction_coeffs/s2_corr_coeffs_{country}.csv")
     
     return task
 
