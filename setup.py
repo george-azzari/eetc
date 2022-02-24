@@ -15,7 +15,7 @@ setup(
     name='gee_tools',
     packages=find_packages(exclude=['*.csv', '*.ipynb', 'tests', 'examples']),
     description='A collection of utility functions relating to Google Earth Engine.',
-    version='0.0.10',
+    version='0.0.11',
     url='https://github.com/AtlasAIPBC/gee_tools.git',
     author='George Azzari',
     author_email='',
