@@ -130,3 +130,25 @@ def copy_to(sourcepath, destpath, delete_originals=False):
     if delete_originals:
         for ad in assets_dicts:
             ee.data.deleteAsset(ad['id'])
+
+
+
+def auto_rm(assetpath):
+
+    asset = ee.data.getAsset(assetpath)
+    print("Assessing " + asset['type'] + ': ' + assetpath)
+
+    if asset['type'] in ['IMAGE', 'TABLE']:
+        print('Deleting '+ asset['type']+ ' ' + asset['id'])
+        ee.data.deleteAsset(asset['id'])
+    
+    elif asset['type'] in ['IMAGE_COLLECTION', 'FOLDER']:
+        # sub_asset_list = ee.data.getList(dict(id=asset['id']))
+        while len(ee.data.getList(dict(id=asset['id'])))>0:
+            for sub_asset in ee.data.getList(dict(id=asset['id'])):
+                auto_rm(sub_asset['id'])
+        print('Deleting empty '+ asset['type']+ ' ' + asset['id'])
+        ee.data.deleteAsset(asset['id'])
+
+    else:
+        pass
