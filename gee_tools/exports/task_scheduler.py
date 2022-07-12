@@ -242,7 +242,7 @@ class TaskScheduler(object):
             _running, finished = TaskScheduler._wait_any_tasks(running, sleep_time=sleep_time)
             for job in finished:
                 if verbose > 2:
-                    print('Job {} {}'.format(job.jid, 'failed' if job.failed() else 'sucessful'))
+                    print('Job {} {}'.format(job.jid, 'failed' if job.failed() else 'successful'))
                 if error_on_fail and job.failed():
                     raise TaskSchedulerError('Job {} failed'.format(job.jid))
             return _running

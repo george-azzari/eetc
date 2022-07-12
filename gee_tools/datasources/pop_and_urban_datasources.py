@@ -133,3 +133,33 @@ class CityAccessibility(SingleImageDatasource):
 
     def get_img_coll(self):
         return self.coll
+
+
+class GoogleOpenBuildings(MultiImageDatasource):
+    """
+    Image Properties
+
+    building_id    A random value per building from 0 to 2^22. May not be unique.
+    confidence     The confidence of the building detection.
+    """
+
+    def _add_building_id(self, feature, exp):
+        return feature.set({
+            'building_id': ee.Number(feature.get('_building_id')).multiply(exp).long(),
+        })
+
+    def build_img_coll(self):
+        gob = ee.FeatureCollection("GOOGLE/Research/open-buildings/v1/polygons")
+        gob = gob.filterBounds(self.filterpoly)
+        gob = gob.randomColumn("_building_id", 0, "uniform")
+        exp = ee.Number(2).pow(22)
+        gob = gob.map(lambda f: self._add_building_id(f, exp))
+
+        building_id_im = gob.reduceToImage(['building_id'], ee.Reducer.first()).select(['first'], ['building_id'])
+        conf_im = gob.reduceToImage(['confidence'], ee.Reducer.first()).select(['first'], ['confidence'])
+        stacked = building_id_im.addBands(conf_im.toDouble())
+
+        self.coll = ee.ImageCollection([stacked])
+
+    def get_img_coll(self):
+        return self.coll

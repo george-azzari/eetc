@@ -224,7 +224,7 @@ class ExportManager(object):
         return image_spec, output_bands
 
 
-    def get_scene(self, image_spec, tags=None):
+    def get_scene(self, image_spec, tags=None, add_latlon=True):
         """
         Take a featureCollection (fc) where each row has point geometry and 
         return a featureCollection with image bands added.
@@ -243,6 +243,7 @@ class ExportManager(object):
                 the 'datasources_config' constructor argument.  Only tags contained in the tags argument
                 will be used when generating the return value.  If None, all datasources are included.
                 Defaults to None.
+            add_latlon (Boolean): If True add a LAT and a LON band to the output scene. Defaults to True.
 
         Returns:
             (Tuple[ee.Image, List[str]]):
@@ -255,7 +256,7 @@ class ExportManager(object):
             return element.
         """
         image_spec, output_bands = self._get_image_spec_helper(image_spec, tags)
-        return image_spec.get_scene(), output_bands
+        return image_spec.get_scene(add_latlon=add_latlon), output_bands
 
 
     def sample_tiles(self, fc, image_spec, export_radius, tags=None):

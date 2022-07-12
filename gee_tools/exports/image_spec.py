@@ -46,8 +46,6 @@ class ImageSpec(object):
         self.projection = projection
         self.scale = scale
 
-        if not isinstance(self.scale, int):
-            raise ValueError("Expected integral scale.  Got: {}".format(type(scale)))
         if not isinstance(self.region, ee.Geometry):
             raise ValueError("Expected filterpoly to be an ee.Geometry instance.  Got: {}".format(type(self.region)))
 
