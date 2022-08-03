@@ -6,7 +6,6 @@ Obtains correction coefficients for converting Sentinel 2 TOA to SR
 
 import gee_tools.datasources.sentinel2 as s2_1c
 import gee_tools.datasources.sentinel2_2a as s2_2a
-from gee_tools.export_tables import export_features
 import ee
 
 ee.Initialize()
@@ -82,9 +81,6 @@ def get_corr_coeffs(geometry, country, max_slope=10, start_date=ee.Date('2019-01
     coefficients = ee.FeatureCollection(ee.List([
         get_coeffs(sample_points, bandname, country) for bandname in bandnames
     ]))
-
-    task = export_features(coefficients, f"s2_correction_coeffs/s2_corr_coeffs_{country}")
     
-    return task
-
-    
+    return coefficients
+ 

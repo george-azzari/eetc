@@ -13,7 +13,10 @@ import ee
 def export_features(features, fname, export_to='drive', bucket_name=None):
 
     if export_to == 'drive':
-        task = ee.batch.Export.table.toDrive(features, fname, '')
+        task = ee.batch.Export.table.toDrive(features, 
+                                             description=fname.split('/')[-1], 
+                                             folder='',
+                                             fileNamePrefix=fname.split('/')[-1])
 
     else:
         task = ee.batch.Export.table.toCloudStorage(features,
