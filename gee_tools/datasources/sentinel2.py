@@ -6,7 +6,7 @@ from gee_tools.imgtools import appendBand, getGLCMTexture, addDOY
 
 class Sentinel2TOA(MultiImageDatasource):
 
-    def build_img_coll(self, addVIs=True, addCloudMasks=True):
+    def build_img_coll(self, addVIs=True, addCloudMasks=True, corr_coeffs=None):
         """
         Args:
 
@@ -16,6 +16,8 @@ class Sentinel2TOA(MultiImageDatasource):
             Defaults to True.
         addCloudMasks (bool):  If True, use addAllQAMaps to add cloud masks.
             Defaults to True.
+        corr_coeffs (Optional[pandas dataframe]): If not None, correct TOA to SR using correction coefficients
+            Defaults to None. 
         """
 
         self.name = "COPERNICUS/S2"
@@ -40,8 +42,9 @@ class Sentinel2TOA(MultiImageDatasource):
 
         self._addVIs = addVIs
         self._addCloudMasks = addCloudMasks
+        self._corr_coeffs = corr_coeffs
 
-    def get_img_coll(self, addVIs=None, addCloudMasks=None):
+    def get_img_coll(self, addVIs=None, addCloudMasks=None, corr_coeffs=None):
         """
         Args:
             addVIs (Optional[bool]): If True do two things.
@@ -50,6 +53,8 @@ class Sentinel2TOA(MultiImageDatasource):
                 Defaults to constructor args which defaults to True.
             addCloudMasks (Optional[bool]):  If True, use addAllQAMaps to add cloud masks.
                 Defaults to constructor args which defuaults to True.
+            corr_coeffs (Optional[pandas dataframe]): If not None, correct TOA to SR using correction coefficients
+                Defaults to constructor args which defuaults to None.
                 
         Returns:
             (ee.ImageCollection):  The sentinel 2 image collection modified by arguments.
@@ -59,12 +64,17 @@ class Sentinel2TOA(MultiImageDatasource):
         # TODO:   2) VIs should always be computed in reflectance units (i.e. after scaling).
         addVIs = self._addVIs if addVIs is None else addVIs
         addCloudMasks = self._addCloudMasks if addCloudMasks is None else addCloudMasks
+        corr_coeffs = self._corr_coeffs if corr_coeffs is None else corr_coeffs
 
         s2 = self.coll
 
         if addCloudMasks:
             # FSE tree uses scaled values, not reflectance.
             s2 = s2.map(self.addAllQAMaps)
+        
+        if corr_coeffs is not None:
+            # correction coefficients must be applied prior to calculating VIs, for more accurate indices
+            s2 = s2.map(lambda image: self.correctBands(image, corr_coeffs))
 
         if addVIs:
             # VIs have to be computed in reflectance units.
@@ -73,6 +83,16 @@ class Sentinel2TOA(MultiImageDatasource):
             s2 = s2.map(self.addRededgeExtras)
 
         return s2
+
+    def correctBands(self, img, corr_coeffs):
+        
+        bandnames = corr_coeffs['band'].values.tolist()
+        for bandname in bandnames:
+            scale = ee.Number(corr_coeffs[corr_coeffs['band']==bandname]['scale'].values[0])
+            offset = ee.Number(corr_coeffs[corr_coeffs['band']==bandname]['offset'].values[0])
+            band = img.select([bandname]).multiply(scale).add(offset)
+            img = img.select(img.bandNames().removeAll([bandname])).addBands([band])
+        return img
 
     @staticmethod
     def decodeQA60(img):
@@ -388,6 +408,14 @@ class Sentinel2TOA(MultiImageDatasource):
                 'red': img.select('RED')
 
             }).select([0], ['NDVI'])
+            
+        # SNDVI
+        sndvi = img.expression(
+            '(nir - red) / (red + nir + 0.16)',
+            {
+                'nir': img.select('NIR'),
+                'red': img.select('RED')
+            }).select([0], ['SNDVI'])
 
         # Rededge NDVI 1
         rdndvi1 = img.expression(
@@ -407,7 +435,7 @@ class Sentinel2TOA(MultiImageDatasource):
 
             }).select([0], ['RDNDVI2'])
 
-        return img.addBands(rdndvi1).addBands(rdndvi2).addBands(ndvi)
+        return img.addBands(rdndvi1).addBands(rdndvi2).addBands(ndvi).addBands(sndvi)
 
     def addRededgeExtras(self, img, alpha=0.2):
 
