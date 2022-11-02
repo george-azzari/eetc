@@ -132,8 +132,27 @@ def copy_to(sourcepath, destpath, delete_originals=False):
             ee.data.deleteAsset(ad['id'])
 
 
+def auto_rm(path, contains=None):
 
-def auto_rm(assetpath):
+    assets_dicts = ee.data.getList(dict(id=path))
+    ## NOTE: ee.data.getList is deprecated, but I don't know the params of the new listAssets() function. 
+    if contains is not None:
+        assets_dicts = [ad for ad in assets_dicts if contains in ad['id']]
+
+    for ad in assets_dicts:
+        if ad['type'] in ['Image', 'Table']:
+            print('Deleting '+ ad['type']+ ' ' + ad['id'])
+            ee.data.deleteAsset(ad['id'])
+        else:
+            if len(ee.data.getList(dict(id=ad['id']))) == 0:
+                print('Deleting empty '+ ad['type']+ ' ' + ad['id'])
+                ee.data.deleteAsset(ad['id'])
+            else:
+                auto_rm(ad['id'])
+                auto_rm(ad['id'])
+
+
+def auto_rm2(assetpath):
 
     asset = ee.data.getAsset(assetpath)
     print("Assessing " + asset['type'] + ': ' + assetpath)
@@ -144,9 +163,10 @@ def auto_rm(assetpath):
     
     elif asset['type'] in ['IMAGE_COLLECTION', 'FOLDER']:
         # sub_asset_list = ee.data.getList(dict(id=asset['id']))
+        ## NOTE: ee.data.getList is deprecated, but I don't know the params of the new listAssets() function. 
         while len(ee.data.getList(dict(id=asset['id'])))>0:
             for sub_asset in ee.data.getList(dict(id=asset['id'])):
-                auto_rm(sub_asset['id'])
+                auto_rm2(sub_asset['id'])
         print('Deleting empty '+ asset['type']+ ' ' + asset['id'])
         ee.data.deleteAsset(asset['id'])
 
